@@ -1,9 +1,11 @@
-# VeriKVM takes donations in Bitcoin only — the channel that keeps both the
-# maintainer and the donor anonymous.
+# VeriKVM takes donations in crypto — see the README's Support section for
+# the addresses (Bitcoin, Ethereum/EVM, Solana, Tron, Monero). Monero keeps
+# both the maintainer and the donor anonymous; the others are pseudonymous
+# on-chain and not tied to any public identity.
 #
-# GitHub Sponsors is intentionally NOT used: receiving through it requires
-# identity verification (KYC), which would break the maintainer's anonymity.
+# GitHub Sponsors is pending approval. Once the listing is live, add
+#   github: [bittricks]
+# below to light up the native Sponsor button.
 #
-# The Sponsor button links to the README's Support section, which holds the
-# Bitcoin address.
+# The Sponsor button links to the README's Support section.
 custom: ["https://github.com/bittricks/verikvm#support"]

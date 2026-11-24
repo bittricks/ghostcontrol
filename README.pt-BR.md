@@ -105,11 +105,33 @@ MIT — veja [LICENSE](LICENSE).
 
 ## Apoie
 
-O VeriKVM recebe doações em **Bitcoin**. Se ele te poupou um fim de semana,
-você pode contribuir on-chain:
+O VeriKVM é um projeto voluntário. Se ele te poupou um fim de semana, você
+pode contribuir on-chain. **Envie cada ativo somente na rede indicada — rede
+errada significa fundos perdidos.**
 
+**Bitcoin**
 ```
 bc1qp8auny76nc73x5kepej2dsyl54x06nvxgrwjy6
+```
+
+**Ethereum e EVM** — ETH, USDC, USDT em Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain
+```
+0x935D040a03cb94B3cD1736b1f0813A6A0Ab0BE72
+```
+
+**Solana** — SOL e tokens SPL
+```
+24LvX1XQ7xF6SGeRwx3NmbPMAaaqHF2FJp7rEM9GMjpS
+```
+
+**Tron** — TRX e TRC-20 (ex.: USDT-TRC20)
+```
+TRxSPc5tNmgHvr4t9bPtnG6U7iApKedX8n
+```
+
+**Monero** — XMR
+```
+86oP1vf2TucfxGQDkXyBJeJnf5yeC7uzperQsnFdmS3EYHP4zYt3DdeYyP12Qo69w6AEuGYfMTSeKZHDrC8fzECm2c8GRii
 ```
 
 **O que as doações apoiam:** manutenção contínua, o hardware que usamos para

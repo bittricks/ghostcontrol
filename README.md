@@ -104,11 +104,33 @@ MIT — see [LICENSE](LICENSE).
 
 ## Support
 
-VeriKVM takes donations in **Bitcoin**. If it saved you a weekend, you can
-chip in on-chain:
+VeriKVM is a volunteer project. If it saved you a weekend, you can chip in
+on-chain. **Send each asset only on the network listed — a wrong network
+means the funds are lost.**
 
+**Bitcoin**
 ```
 bc1qp8auny76nc73x5kepej2dsyl54x06nvxgrwjy6
+```
+
+**Ethereum & EVM** — ETH, USDC, USDT on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain
+```
+0x935D040a03cb94B3cD1736b1f0813A6A0Ab0BE72
+```
+
+**Solana** — SOL and SPL tokens
+```
+24LvX1XQ7xF6SGeRwx3NmbPMAaaqHF2FJp7rEM9GMjpS
+```
+
+**Tron** — TRX and TRC-20 (e.g. USDT-TRC20)
+```
+TRxSPc5tNmgHvr4t9bPtnG6U7iApKedX8n
+```
+
+**Monero** — XMR
+```
+86oP1vf2TucfxGQDkXyBJeJnf5yeC7uzperQsnFdmS3EYHP4zYt3DdeYyP12Qo69w6AEuGYfMTSeKZHDrC8fzECm2c8GRii
 ```
 
 **What donations support:** continued maintenance, the hardware we test
