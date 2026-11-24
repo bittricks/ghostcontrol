@@ -328,7 +328,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# agent_daemon mora em src/; a raiz do projeto (onde ficam templates/ e o
+# log) e um nivel acima.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUEUE_DIR = queue_dir()   # fora de pastas sincronizadas; ver config.queue_dir
 LOG_PATH = os.path.join(BASE_DIR, "agent_daemon.log")
 

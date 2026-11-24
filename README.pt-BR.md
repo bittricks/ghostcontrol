@@ -81,7 +81,7 @@ pip install -r requirements.txt
 
 # sobe o daemon (auto-detecta a porta serial; --layout define o layout
 # do teclado do alvo, padrão abnt2)
-python agent_daemon.py --layout us
+python src/agent_daemon.py --layout us
 ```
 
 Instalação, ligação e calibração completas em [`docs/`](docs/).

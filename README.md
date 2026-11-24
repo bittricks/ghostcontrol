@@ -81,7 +81,7 @@ pip install -r requirements.txt
 
 # start the daemon (auto-detects the serial port; --layout sets the
 # target's keyboard layout, default abnt2)
-python agent_daemon.py --layout us
+python src/agent_daemon.py --layout us
 ```
 
 Full setup, wiring and calibration are in [`docs/`](docs/).
