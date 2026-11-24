@@ -1,0 +1,22 @@
+# --- secrets & credentials — NEVER commit ---
+.env
+.env.*
+!.env.example
+*.local.json
+login_credentials*
+credentials*.json
+
+# --- runtime / private data ---
+queue/
+captures/
+*.log
+
+# --- target-screen frames hold private data ---
+*.png
+!templates/*.png
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

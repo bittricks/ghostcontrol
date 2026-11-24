@@ -1,0 +1,9 @@
+# VeriKVM takes donations in Bitcoin only — the channel that keeps both the
+# maintainer and the donor anonymous.
+#
+# GitHub Sponsors is intentionally NOT used: receiving through it requires
+# identity verification (KYC), which would break the maintainer's anonymity.
+#
+# The Sponsor button links to the README's Support section, which holds the
+# Bitcoin address.
+custom: ["https://github.com/bittricks/verikvm#support"]
