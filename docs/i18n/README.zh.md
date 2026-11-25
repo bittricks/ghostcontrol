@@ -11,9 +11,9 @@
 因此任务绝不会落到锁屏上，也不会跑进不相干的应用。
 
 > **用于你自己的电脑。** 你的两台电脑、两根线，再加上你本人。适用范围与威胁模型见
-> [SECURITY.md](SECURITY.md)。
+> [SECURITY.md](../SECURITY.md)。
 
-🌐 [English](../README.md) · [Português](../README.pt-BR.md) · [Español](README.es.md) · **中文** · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 [English](../../README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · **中文** · [Français](README.fr.md) · [Русский](README.ru.md)
 
 MIT · 基于 CH9329 USB-HID 桥接器 + 一块 HDMI 采集卡
 
@@ -57,7 +57,7 @@ VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务
 
 **它不是**硬件 KVM。**没有电源控制、没有 BIOS/UEFI 访问、没有虚拟介质。** 如果你需要
 开机前的控制，请改用基于树莓派的 IP-KVM（PiKVM、TinyPilot）。老实交代的边界见
-[HARDWARE.md](HARDWARE.md)。
+[HARDWARE.md](../HARDWARE.md)。
 
 ## 特性
 
@@ -66,8 +66,8 @@ VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务
 - **真实 HID 输入**——一个 CH9329 桥接器，目标机无法把它和物理键鼠区分开。无代理。
 - **国际键盘**——可插拔布局（US、ABNT2 等）。当前布局打不出来的字符会被拒绝，而不会以
   错误的字形输出。
-- **实测，而非拍脑袋**——一份[硬件指南](HARDWARE.md)，记录了我们实测到的各种坑，外加
-  一本[工程日志](LEARNINGS.md)，写清楚什么出了问题、为什么。
+- **实测，而非拍脑袋**——一份[硬件指南](../HARDWARE.md)，记录了我们实测到的各种坑，外加
+  一本[工程日志](../LEARNINGS.md)，写清楚什么出了问题、为什么。
 
 ## 怎么连接
 
@@ -77,7 +77,7 @@ VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务
 ```
 
 两台电脑、两根线。控制机写出 JSON 任务文件；守护进程在目标机上执行它们，并回读屏幕。
-配件清单（约 US$15–25）见 [HARDWARE.md](HARDWARE.md)。
+配件清单（约 US$15–25）见 [HARDWARE.md](../HARDWARE.md)。
 
 ## 快速上手
 
@@ -90,7 +90,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-完整的安装、接线与校准见 [`docs/`](.)。
+完整的安装、接线与校准见 [`docs/`](..)。
 
 ## 状态
 
@@ -100,11 +100,11 @@ python src/agent_daemon.py --layout us
 ## 安全
 
 它用你的凭据，控制你自己的一台电脑。**默认不开放任何网络端口**——它只跟硬件打交道，
-不跟网络。在对外暴露任何东西之前，以及想报告漏洞时，请先读 [SECURITY.md](SECURITY.md)。
+不跟网络。在对外暴露任何东西之前，以及想报告漏洞时，请先读 [SECURITY.md](../SECURITY.md)。
 
 ## 许可证
 
-MIT——见 [LICENSE](../LICENSE)。
+MIT——见 [LICENSE](../../LICENSE)。
 
 ## 支持
 

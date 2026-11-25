@@ -14,9 +14,9 @@ antes de cada acción y se niega a actuar en la ventana equivocada**: así una
 tarea nunca termina en la pantalla de bloqueo ni en la aplicación que no es.
 
 > **Para tus propias máquinas.** Dos máquinas tuyas, dos cables y tú. Consulta
-> [SECURITY.md](SECURITY.md) para conocer el alcance y el modelo de amenazas.
+> [SECURITY.md](../SECURITY.md) para conocer el alcance y el modelo de amenazas.
 
-🌐 [English](../README.md) · [Português](../README.pt-BR.md) · **Español** · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 [English](../../README.md) · [Português](README.pt-BR.md) · **Español** · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
 
 MIT · basado en un puente USB-HID CH9329 + una capturadora HDMI
 
@@ -79,7 +79,7 @@ parece una persona frente al teclado.
 
 **No es** un KVM de hardware. **No hay control de encendido, ni acceso a
 BIOS/UEFI, ni medios virtuales.** Si necesitas control antes del arranque, usa
-un IP-KVM basado en Raspberry Pi (PiKVM, TinyPilot). En [HARDWARE.md](HARDWARE.md)
+un IP-KVM basado en Raspberry Pi (PiKVM, TinyPilot). En [HARDWARE.md](../HARDWARE.md)
 están los límites, sin adornos.
 
 ## Características
@@ -91,8 +91,8 @@ están los límites, sin adornos.
 - **Teclados internacionales** — distribuciones intercambiables (US, ABNT2 y
   más). Un carácter que la distribución activa no puede producir se rechaza;
   nunca se emite con el glifo equivocado.
-- **Medido, no supuesto** — una [guía de hardware](HARDWARE.md) con las
-  particularidades que medimos, y un [diario de ingeniería](LEARNINGS.md) de lo
+- **Medido, no supuesto** — una [guía de hardware](../HARDWARE.md) con las
+  particularidades que medimos, y un [diario de ingeniería](../LEARNINGS.md) de lo
   que falló y por qué.
 
 ## Cómo se conecta
@@ -104,7 +104,7 @@ están los límites, sin adornos.
 
 Dos máquinas, dos cables. El controlador escribe archivos de tarea en JSON; el
 daemon los ejecuta en la máquina de destino y vuelve a leer la pantalla. La
-lista de piezas (~US$15–25) está en [HARDWARE.md](HARDWARE.md).
+lista de piezas (~US$15–25) está en [HARDWARE.md](../HARDWARE.md).
 
 ## Primeros pasos
 
@@ -118,7 +118,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-La instalación, el cableado y la calibración completos están en [`docs/`](.).
+La instalación, el cableado y la calibración completos están en [`docs/`](..).
 
 ## Estado
 
@@ -130,12 +130,12 @@ libre de código específico de la aplicación.
 
 Esto controla una máquina tuya con una credencial tuya. **No abre ningún
 puerto de red por defecto**: habla con el hardware, no con la red. Lee
-[SECURITY.md](SECURITY.md) antes de exponer nada, y también para reportar una
+[SECURITY.md](../SECURITY.md) antes de exponer nada, y también para reportar una
 vulnerabilidad.
 
 ## Licencia
 
-MIT — consulta [LICENSE](../LICENSE).
+MIT — consulta [LICENSE](../../LICENSE).
 
 ## Apoyar
 

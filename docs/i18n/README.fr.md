@@ -14,9 +14,9 @@ action et refuse d'agir dans la mauvaise fenêtre** : ainsi une tâche ne tombe
 jamais sur l'écran de verrouillage ni dans la mauvaise application.
 
 > **Pour vos propres machines.** Deux de vos machines, deux câbles, et vous.
-> Voir [SECURITY.md](SECURITY.md) pour le périmètre et le modèle de menace.
+> Voir [SECURITY.md](../SECURITY.md) pour le périmètre et le modèle de menace.
 
-🌐 [English](../README.md) · [Português](../README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · **Français** · [Русский](README.ru.md)
+🌐 [English](../../README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · **Français** · [Русский](README.ru.md)
 
 MIT · basé sur un pont USB-HID CH9329 + une carte d'acquisition HDMI
 
@@ -83,7 +83,7 @@ clavier.
 **Ce n'est pas** un KVM matériel. **Pas de contrôle de l'alimentation, pas
 d'accès BIOS/UEFI, pas de média virtuel.** S'il vous faut un contrôle avant le
 démarrage, utilisez un IP-KVM basé sur Raspberry Pi (PiKVM, TinyPilot). Les
-limites, sans détour, sont dans [HARDWARE.md](HARDWARE.md).
+limites, sans détour, sont dans [HARDWARE.md](../HARDWARE.md).
 
 ## Fonctionnalités
 
@@ -94,9 +94,9 @@ limites, sans détour, sont dans [HARDWARE.md](HARDWARE.md).
 - **Claviers internationaux** — dispositions interchangeables (US, ABNT2 et
   plus). Un caractère que la disposition active ne peut pas produire est
   refusé, jamais émis avec le mauvais glyphe.
-- **Mesuré, pas deviné** — un [guide matériel](HARDWARE.md) avec les
+- **Mesuré, pas deviné** — un [guide matériel](../HARDWARE.md) avec les
   particularités que nous avons mesurées, et un [journal
-  d'ingénierie](LEARNINGS.md) de ce qui a cassé et pourquoi.
+  d'ingénierie](../LEARNINGS.md) de ce qui a cassé et pourquoi.
 
 ## Comment ça se branche
 
@@ -107,7 +107,7 @@ limites, sans détour, sont dans [HARDWARE.md](HARDWARE.md).
 
 Deux machines, deux câbles. Le contrôleur écrit des fichiers de tâche en JSON ;
 le daemon les exécute sur la cible et relit l'écran. La liste des pièces
-(~15–25 US$) est dans [HARDWARE.md](HARDWARE.md).
+(~15–25 US$) est dans [HARDWARE.md](../HARDWARE.md).
 
 ## Pour commencer
 
@@ -121,7 +121,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-Installation, câblage et calibration complets dans [`docs/`](.).
+Installation, câblage et calibration complets dans [`docs/`](..).
 
 ## État
 
@@ -133,12 +133,12 @@ spécifique à l'application.
 
 Ceci contrôle une de vos machines avec un de vos identifiants. **Il n'ouvre
 aucun port réseau par défaut** : il parle au matériel, pas au réseau. Lisez
-[SECURITY.md](SECURITY.md) avant d'exposer quoi que ce soit, et pour signaler
+[SECURITY.md](../SECURITY.md) avant d'exposer quoi que ce soit, et pour signaler
 une vulnérabilité.
 
 ## Licence
 
-MIT — voir [LICENSE](../LICENSE).
+MIT — voir [LICENSE](../../LICENSE).
 
 ## Soutenir
 
