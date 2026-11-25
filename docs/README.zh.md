@@ -13,7 +13,7 @@
 > **用于你自己的机器。** 你的两台机器、两根线，加上你自己。范围与威胁模型见
 > [SECURITY.md](SECURITY.md)。
 
-🌐 [English](README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · **中文** · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 [English](../README.md) · [Português](../README.pt-BR.md) · [Español](README.es.md) · **中文** · [Français](README.fr.md) · [Русский](README.ru.md)
 
 MIT · 基于 CH9329 USB-HID 桥接器 + 一块 HDMI 采集卡
 
@@ -90,7 +90,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-完整的安装、接线与校准见 [`docs/`](docs/)。
+完整的安装、接线与校准见 [`docs/`](.)。
 
 ## 状态
 
@@ -103,7 +103,7 @@ python src/agent_daemon.py --layout us
 
 ## 许可证
 
-MIT —— 见 [LICENSE](LICENSE)。
+MIT —— 见 [LICENSE](../LICENSE)。
 
 ## 支持
 

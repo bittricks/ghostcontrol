@@ -14,9 +14,9 @@ action and refuses to act in the wrong window** — so a task never lands in
 the lock screen or the wrong app.
 
 > **For your own machines.** Two machines of yours, two cables, and you.
-> See [SECURITY.md](SECURITY.md) for the scope and threat model.
+> See [SECURITY.md](docs/SECURITY.md) for the scope and threat model.
 
-🌐 **English** · [Português](README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 **English** · [Português](README.pt-BR.md) · [Español](docs/README.es.md) · [中文](docs/README.zh.md) · [Français](docs/README.fr.md) · [Русский](docs/README.ru.md)
 
 MIT · built on a CH9329 USB-HID bridge + an HDMI capture card
 
@@ -74,7 +74,7 @@ OS is running. No agent, no driver, no remote-desktop software on the target
 
 **It is not** a hardware KVM. There is **no power control, no BIOS/UEFI
 access, no virtual media.** If you need pre-boot control, use a Pi-based
-IP-KVM (PiKVM, TinyPilot). See [HARDWARE.md](HARDWARE.md) for the honest
+IP-KVM (PiKVM, TinyPilot). See [HARDWARE.md](docs/HARDWARE.md) for the honest
 limits.
 
 ## Features
@@ -86,8 +86,8 @@ limits.
 - **International keyboards** — pluggable layouts (US, ABNT2, more). A
   character the active layout can't produce is refused, never emitted as the
   wrong glyph.
-- **Measured, not guessed** — a [hardware guide](HARDWARE.md) with the quirks
-  we measured, and an [engineering log](LEARNINGS.md) of what broke and why.
+- **Measured, not guessed** — a [hardware guide](docs/HARDWARE.md) with the quirks
+  we measured, and an [engineering log](docs/LEARNINGS.md) of what broke and why.
 
 ## How it connects
 
@@ -98,7 +98,7 @@ limits.
 
 Two machines, two cables. The controller writes JSON task files; the daemon
 executes them on the target and reads the screen back. See
-[HARDWARE.md](HARDWARE.md) for the parts list (~US$15–25).
+[HARDWARE.md](docs/HARDWARE.md) for the parts list (~US$15–25).
 
 ## Getting started
 
@@ -123,7 +123,7 @@ architecture-boundary test that keeps the engine free of app-specific code.
 
 This controls a machine of yours with a credential of yours. It opens **no
 network port by default** — it talks to the hardware, not the network. Read
-[SECURITY.md](SECURITY.md) before exposing anything, and to report a
+[SECURITY.md](docs/SECURITY.md) before exposing anything, and to report a
 vulnerability.
 
 ## License

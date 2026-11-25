@@ -16,7 +16,7 @@
 > **Для ваших собственных машин.** Две ваши машины, два кабеля и вы. Область
 > применения и модель угроз — см. [SECURITY.md](SECURITY.md).
 
-🌐 [English](README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · **Русский**
+🌐 [English](../README.md) · [Português](../README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · **Русский**
 
 MIT · на базе моста USB-HID CH9329 + платы захвата HDMI
 
@@ -120,7 +120,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-Полная установка, подключение и калибровка — в [`docs/`](docs/).
+Полная установка, подключение и калибровка — в [`docs/`](.).
 
 ## Статус
 
@@ -136,7 +136,7 @@ python src/agent_daemon.py --layout us
 
 ## Лицензия
 
-MIT — см. [LICENSE](LICENSE).
+MIT — см. [LICENSE](../LICENSE).
 
 ## Поддержать
 

@@ -16,7 +16,7 @@ tarea nunca cae en la pantalla de bloqueo ni en la aplicación equivocada.
 > **Para tus propias máquinas.** Dos máquinas tuyas, dos cables y tú. Consulta
 > [SECURITY.md](SECURITY.md) para el alcance y el modelo de amenazas.
 
-🌐 [English](README.md) · [Português](README.pt-BR.md) · **Español** · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 [English](../README.md) · [Português](../README.pt-BR.md) · **Español** · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
 
 MIT · sobre un puente USB-HID CH9329 + una tarjeta de captura HDMI
 
@@ -119,7 +119,7 @@ python src/agent_daemon.py --layout us
 ```
 
 La instalación, el cableado y la calibración completos están en
-[`docs/`](docs/).
+[`docs/`](.).
 
 ## Estado
 
@@ -136,7 +136,7 @@ vulnerabilidad.
 
 ## Licencia
 
-MIT — consulta [LICENSE](LICENSE).
+MIT — consulta [LICENSE](../LICENSE).
 
 ## Apoyar
 

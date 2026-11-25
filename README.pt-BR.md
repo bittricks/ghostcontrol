@@ -13,9 +13,9 @@ de cada ação e se recusa a agir na janela errada** — então uma tarefa nunca
 cai na tela de bloqueio nem no app errado.
 
 > **Para as suas próprias máquinas.** Duas máquinas suas, dois cabos, e você.
-> Veja [SECURITY.md](SECURITY.md) para o escopo e o modelo de ameaça.
+> Veja [SECURITY.md](docs/SECURITY.md) para o escopo e o modelo de ameaça.
 
-🌐 [English](README.md) · **Português** · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+🌐 [English](README.md) · **Português** · [Español](docs/README.es.md) · [中文](docs/README.zh.md) · [Français](docs/README.fr.md) · [Русский](docs/README.ru.md)
 
 MIT · sobre uma ponte USB-HID CH9329 + uma placa de captura HDMI
 
@@ -75,7 +75,7 @@ remoto no alvo — parece um humano ao teclado.
 **Não é** um KVM de hardware. **Sem controle de energia, sem BIOS/UEFI, sem
 mídia virtual.** Se você precisa de controle pré-boot, use um IP-KVM baseado
 em Raspberry Pi (PiKVM, TinyPilot). Veja os limites honestos em
-[HARDWARE.md](HARDWARE.md).
+[HARDWARE.md](docs/HARDWARE.md).
 
 ## Recursos
 
@@ -86,8 +86,8 @@ em Raspberry Pi (PiKVM, TinyPilot). Veja os limites honestos em
 - **Teclados internacionais** — layouts plugáveis (US, ABNT2 e mais). Um
   caractere que o layout ativo não produz é recusado, nunca emitido como
   glifo errado.
-- **Medido, não chutado** — um [guia de hardware](HARDWARE.md) com as
-  peculiaridades que medimos, e um [diário de engenharia](LEARNINGS.md) do
+- **Medido, não chutado** — um [guia de hardware](docs/HARDWARE.md) com as
+  peculiaridades que medimos, e um [diário de engenharia](docs/LEARNINGS.md) do
   que quebrou e por quê.
 
 ## Como conecta
@@ -99,7 +99,7 @@ em Raspberry Pi (PiKVM, TinyPilot). Veja os limites honestos em
 
 Duas máquinas, dois cabos. O controlador escreve arquivos JSON de tarefa; o
 daemon executa no alvo e relê a tela. A lista de peças (~US$15–25) está em
-[HARDWARE.md](HARDWARE.md).
+[HARDWARE.md](docs/HARDWARE.md).
 
 ## Começando
 
@@ -125,7 +125,7 @@ específico de aplicação.
 
 Isto controla uma máquina sua com uma credencial sua. **Não abre porta de
 rede por padrão** — fala com o hardware, não com a rede. Leia
-[SECURITY.md](SECURITY.md) antes de expor qualquer coisa, e para reportar uma
+[SECURITY.md](docs/SECURITY.md) antes de expor qualquer coisa, e para reportar uma
 vulnerabilidade.
 
 ## Licença

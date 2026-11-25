@@ -16,7 +16,7 @@ jamais sur l'écran de verrouillage ni dans la mauvaise application.
 > **Pour vos propres machines.** Deux de vos machines, deux câbles, et vous.
 > Voir [SECURITY.md](SECURITY.md) pour le périmètre et le modèle de menace.
 
-🌐 [English](README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · **Français** · [Русский](README.ru.md)
+🌐 [English](../README.md) · [Português](../README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · **Français** · [Русский](README.ru.md)
 
 MIT · basé sur un pont USB-HID CH9329 + une carte d'acquisition HDMI
 
@@ -119,7 +119,7 @@ pip install -r requirements.txt
 python src/agent_daemon.py --layout us
 ```
 
-Installation, câblage et calibration complets dans [`docs/`](docs/).
+Installation, câblage et calibration complets dans [`docs/`](.).
 
 ## État
 
@@ -136,7 +136,7 @@ une vulnérabilité.
 
 ## Licence
 
-MIT — voir [LICENSE](LICENSE).
+MIT — voir [LICENSE](../LICENSE).
 
 ## Soutenir
 
