@@ -1,14 +1,14 @@
-"""Testes de screen_utils: deduplicacao de escalas de OCR.
+"""Tests for screen_utils: OCR scale deduplication.
 
-A escala de ampliacao pedida e limitada por OCR_LADO_MAX. Numa tela
-cheia (1920px) as escalas 2, 4 e 6 colapsam TODAS em 2x -- a mesma
-imagem. OCR dos mesmos pixels devolve o mesmo texto, entao
-find_text_in_frame nao deve roda-lo tres vezes.
+The requested upscale is capped by OCR_SIDE_MAX. On a full screen (1920px)
+the scales 2, 4 and 6 ALL collapse to 2x -- the same image. OCR of the same
+pixels returns the same text, so find_text_in_frame must not run it three
+times.
 
-Isto importa porque era ~2/3 do custo de target_state.classify_frame
-numa tela de bloqueio: medido no rig, um frame BLOQUEIO_FOTO levava
-~18s em 12 chamadas de OCR, varias na imagem cheia ampliada a
-3840x2160, e as repetidas nao mudavam nem o veredito nem o texto lido.
+This matters because it was ~2/3 of target_state.classify_frame's cost on a
+lock screen: measured on the rig, a LOCK_PHOTO frame took ~18s across 12 OCR
+calls, several on the full image upscaled to 3840x2160, and the repeats
+changed neither the verdict nor the read text.
 """
 import pytest
 
@@ -17,70 +17,70 @@ import screen_utils
 numpy = pytest.importorskip("numpy")
 
 
-def _conta_ocr(monkeypatch, texto_fixo=""):
-    """Troca o OCR real por um contador; devolve a lista de escalas pedidas."""
-    escalas_pedidas = []
+def _count_ocr(monkeypatch, fixed_text=""):
+    """Replace the real OCR with a counter; returns the list of requested scales."""
+    requested_scales = []
 
     def fake(frame, region=None, lang=None, upscale=2):
-        escalas_pedidas.append(upscale)
-        return {"text": texto_fixo, "raw": texto_fixo, "upscale": upscale}
+        requested_scales.append(upscale)
+        return {"text": fixed_text, "raw": fixed_text, "upscale": upscale}
 
     monkeypatch.setattr(screen_utils, "ocr_region_from_frame", fake)
-    return escalas_pedidas
+    return requested_scales
 
 
-def test_effective_upscale_e_a_fonte_unica_do_teto():
-    # tela cheia: 6x pedido cai para 2x (4000 // 1920 == 2)
+def test_effective_upscale_is_the_single_source_of_the_ceiling():
+    # full screen: 6x requested drops to 2x (4000 // 1920 == 2)
     assert screen_utils._effective_upscale(1920, 6) == 2
     assert screen_utils._effective_upscale(1920, 4) == 2
     assert screen_utils._effective_upscale(1920, 2) == 2
-    # regiao pequena: o teto nem morde
+    # small region: the ceiling does not even bite
     assert screen_utils._effective_upscale(100, 6) == 6
-    # piso: nunca menos que 1, mesmo pedindo 0/None
+    # floor: never less than 1, even asking for 0/None
     assert screen_utils._effective_upscale(1920, 0) == 1
     assert screen_utils._effective_upscale(1920, None) == 1
 
 
-def test_tela_cheia_colapsa_as_escalas_num_unico_ocr(monkeypatch):
-    """1920px: o teto leva 2, 4 e 6 todas a 2x. Nao-achar nao pode
-    custar tres OCR identicos -- era o desperdicio do caminho de
-    desbloqueio, onde o estado e BLOQUEIO_FOTO e nenhum marcador casa."""
-    pedidas = _conta_ocr(monkeypatch, texto_fixo="nada aqui")
+def test_full_screen_collapses_the_scales_into_a_single_ocr(monkeypatch):
+    """1920px: the ceiling takes 2, 4 and 6 all to 2x. Not-found must not
+    cost three identical OCRs -- that was the waste of the unlock path, where
+    the state is LOCK_PHOTO and no marker matches."""
+    requested = _count_ocr(monkeypatch, fixed_text="nothing here")
     frame = numpy.zeros((1080, 1920, 3), dtype=numpy.uint8)
     r = screen_utils.find_text_in_frame(frame, "PREMISSAS")
     assert r["found"] is False
-    assert pedidas == [2]          # uma vez, nao [2, 4, 6]
+    assert requested == [2]          # once, not [2, 4, 6]
 
 
-def test_regiao_pequena_mantem_as_escalas_distintas(monkeypatch):
-    """Numa regiao pequena o teto nao colapsa nada: as tres escalas sao
-    imagens diferentes e todas rodam. E a garantia de que o dedup nao
-    enfraqueceu a busca em rotulo pequeno (o caso 'FCFF' -> 'Gigg')."""
-    pedidas = _conta_ocr(monkeypatch, texto_fixo="nada")
+def test_small_region_keeps_the_scales_distinct(monkeypatch):
+    """On a small region the ceiling collapses nothing: the three scales are
+    different images and all run. It is the guarantee that the dedup did not
+    weaken the search on a small label (the 'FCFF' -> 'Gigg' case)."""
+    requested = _count_ocr(monkeypatch, fixed_text="nothing")
     frame = numpy.zeros((1080, 1920, 3), dtype=numpy.uint8)
     r = screen_utils.find_text_in_frame(frame, "PREMISSAS",
                                         region=[0, 0, 100, 50])
     assert r["found"] is False
-    assert pedidas == [2, 4, 6]
+    assert requested == [2, 4, 6]
 
 
-def test_dedup_nao_muda_a_escala_reportada_no_achado(monkeypatch):
-    """Quem ACHA ainda reporta a escala pedida, exatamente como antes."""
-    pedidas = _conta_ocr(monkeypatch, texto_fixo="PREMISSAS visivel")
+def test_dedup_does_not_change_the_scale_reported_on_a_match(monkeypatch):
+    """Whoever MATCHES still reports the requested scale, exactly as before."""
+    requested = _count_ocr(monkeypatch, fixed_text="PREMISSAS visible")
     frame = numpy.zeros((1080, 1920, 3), dtype=numpy.uint8)
     r = screen_utils.find_text_in_frame(frame, "PREMISSAS",
                                         region=[0, 0, 100, 50])
     assert r["found"] is True
     assert r["upscale"] == 2
-    assert pedidas == [2]          # parou na primeira, sem custar as outras
+    assert requested == [2]          # stopped at the first, without the others
 
 
-def test_frame_sem_shape_nao_quebra_e_nao_deduplica(monkeypatch):
-    """Um stub de teste (frame que nao e array) nao tem .shape: sem como
-    prever o teto, cai no comportamento antigo e roda todas as escalas.
-    Garante que o try/except protege os testes do daemon que passam uma
-    string como frame."""
-    pedidas = _conta_ocr(monkeypatch, texto_fixo="nada")
+def test_frame_without_shape_does_not_break_and_does_not_dedup(monkeypatch):
+    """A test stub (a frame that is not an array) has no .shape: with no way
+    to predict the ceiling, it falls back to the old behavior and runs all
+    scales. This guarantees the try/except protects the daemon tests that
+    pass a string as the frame."""
+    requested = _count_ocr(monkeypatch, fixed_text="nothing")
     r = screen_utils.find_text_in_frame("FRAME", "PREMISSAS")
     assert r["found"] is False
-    assert pedidas == [2, 4, 6]
+    assert requested == [2, 4, 6]

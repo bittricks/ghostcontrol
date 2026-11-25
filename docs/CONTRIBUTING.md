@@ -1,4 +1,4 @@
-# Contributing to VeriKVM
+# Contributing to GhostControl
 
 Thanks for considering a contribution. This project has one strong opinion,
 and it shapes everything: **it never acts on a screen it hasn't verified, and
@@ -10,7 +10,7 @@ fit right in.
 - **Fail-closed.** When the code can't be sure, it does nothing. A change that
   makes an uncertain path *act* instead of *refuse* will be sent back. Losing
   a batch costs a minute; typing blind costs more.
-- **Own-machine only.** VeriKVM is for controlling your own machines. We won't
+- **Own-machine only.** GhostControl is for controlling your own machines. We won't
   accept features whose only purpose is to evade a platform's defenses —
   anti-detection, timing obfuscation, automation-hiding. See
   [SECURITY.md](SECURITY.md).
@@ -20,8 +20,8 @@ fit right in.
 ## Setup
 
 ```bash
-git clone https://github.com/bittricks/verikvm
-cd verikvm
+git clone https://github.com/bittricks/ghostcontrol
+cd ghostcontrol
 python -m venv .venv && . .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 pytest

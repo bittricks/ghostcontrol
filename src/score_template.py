@@ -1,17 +1,18 @@
-"""Valida um template do passo `expect` contra os frames ja capturados.
+"""Validates an `expect` step template against the already-captured frames.
 
-Um template so presta se existir um limiar que separe "a tela e essa" de
-"nao e". Este script mede isso offline, sem ligar o rig: pontua o
-template contra tudo em queue/frames/ e mostra a distribuicao.
+A template is only useful if there is a threshold that separates "the
+screen is this one" from "it is not". This script measures that offline,
+without powering up the rig: it scores the template against everything in
+queue/frames/ and shows the distribution.
 
-  python score_template.py templates/wpp_caixa_vazia.png
+  python score_template.py templates/wpp_empty_box.png
 
-Leia a distribuicao assim:
-  - BIMODAL com salto largo -> bom. O limiar fica dentro do salto.
-  - UNIMODAL -> template ruim. Nenhum limiar separa; usa-lo daria falsa
-    confianca, que e o oposto do proposito do `expect`.
+Read the distribution like this:
+  - BIMODAL with a wide jump -> good. The threshold sits inside the jump.
+  - UNIMODAL -> bad template. No threshold separates; using it would give
+    false confidence, which is the opposite of the `expect` purpose.
 
-Ver templates/README.md para o metodo de escolha de templates.
+See templates/README.md for the template-choosing method.
 """
 import argparse
 import os
@@ -26,19 +27,19 @@ from config import queue_dir
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FRAMES = os.path.join(queue_dir(), "frames")
 
-# find_image_in_frame so devolve x/y acima do limiar; passando 2.0
-# (inalcancavel) forcamos o caminho "nao encontrado", que ainda assim
-# reporta a melhor confianca -- que e o que queremos medir.
+# find_image_in_frame only returns x/y above the threshold; passing 2.0
+# (unreachable) forces the "not found" path, which still reports the best
+# confidence -- which is what we want to measure.
 UNREACHABLE = 2.0
 
 
 def _iter_frames(frames_dir):
-    """PNGs de frames_dir e do subdiretorio keep/.
+    """PNGs from frames_dir and from the keep/ subdirectory.
 
-    keep/ existe porque o daemon poda queue/frames/ por tamanho; e la que
-    ficam os frames citados como medicao. Eles sao exatamente os que mais
-    importam para validar um template, entao a poda nao pode escondê-los
-    desta ferramenta.
+    keep/ exists because the daemon prunes queue/frames/ by size; it is
+    where the frames cited as measurements live. They are exactly the ones
+    that matter most for validating a template, so pruning must not hide
+    them from this tool.
     """
     for base in (frames_dir, os.path.join(frames_dir, KEEP_SUBDIR)):
         try:
@@ -60,7 +61,7 @@ def score_all(template, frames_dir, min_height=200):
             result = screen_utils.find_image_in_frame(
                 img, template, confidence=UNREACHABLE)
         except Exception as exc:  # noqa: BLE001
-            print("erro em %s: %s" % (name, exc), file=sys.stderr)
+            print("error in %s: %s" % (name, exc), file=sys.stderr)
             continue
         scores.append((result["confidence"], name))
     scores.sort(reverse=True)
@@ -69,11 +70,11 @@ def score_all(template, frames_dir, min_height=200):
 
 def report(scores, top=12):
     if not scores:
-        print("nenhum frame avaliado -- queue/frames/ esta vazio?")
+        print("no frame evaluated -- is queue/frames/ empty?")
         return 1
-    print("frames avaliados: %d" % len(scores))
+    print("frames evaluated: %d" % len(scores))
 
-    print("\nhistograma de confianca:")
+    print("\nconfidence histogram:")
     buckets = {}
     for conf, _ in scores:
         key = round(conf, 1)
@@ -90,30 +91,30 @@ def report(scores, top=12):
     if not gaps:
         return 0
     gap, i = gaps[0]
-    limiar = (scores[i][0] + scores[i + 1][0]) / 2
-    print("\nmaior salto: %.4f entre #%d (%.4f) e #%d (%.4f)"
+    threshold = (scores[i][0] + scores[i + 1][0]) / 2
+    print("\nlargest jump: %.4f between #%d (%.4f) and #%d (%.4f)"
           % (gap, i, scores[i][0], i + 1, scores[i + 1][0]))
-    print("=> %d frames acima, %d abaixo; limiar sugerido ~%.2f"
-          % (i + 1, len(scores) - i - 1, limiar))
+    print("=> %d frames above, %d below; suggested threshold ~%.2f"
+          % (i + 1, len(scores) - i - 1, threshold))
     if gap < 0.15:
-        print("\nAVISO: salto estreito (< 0.15). A distribuicao parece")
-        print("unimodal: este template provavelmente NAO separa bem.")
+        print("\nWARNING: narrow jump (< 0.15). The distribution looks")
+        print("unimodal: this template probably does NOT separate well.")
     return 0
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("template", help="PNG do template a validar")
+    parser.add_argument("template", help="PNG of the template to validate")
     parser.add_argument("--frames", default=DEFAULT_FRAMES,
-                        help="diretorio de frames (padrao: queue/frames/)")
+                        help="frames directory (default: queue/frames/)")
     parser.add_argument("--top", type=int, default=12)
     args = parser.parse_args(argv)
 
     if not os.path.exists(args.template):
-        parser.error("template nao encontrado: %s" % args.template)
+        parser.error("template not found: %s" % args.template)
     if not os.path.isdir(args.frames):
-        parser.error("diretorio de frames nao encontrado: %s" % args.frames)
+        parser.error("frames directory not found: %s" % args.frames)
 
     return report(score_all(args.template, args.frames), top=args.top)
 

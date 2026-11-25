@@ -1,5 +1,5 @@
-"""Utilitarios de dimensionamento de janela, compartilhados entre
-calibration.py, capture_preview.py e remote_control.py."""
+"""Window-sizing helpers, shared between calibration.py,
+capture_preview.py and remote_control.py."""
 import ctypes
 
 

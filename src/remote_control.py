@@ -1,44 +1,44 @@
 """
-Controle remoto end-to-end: video HDMI capturado -> mapeamento de
-coordenadas -> mouse/teclado reais no PC alvo via CH9329 (conectado
-por um adaptador CH340).
+End-to-end remote control: captured HDMI video -> coordinate mapping ->
+real mouse/keyboard on the target PC via CH9329 (connected through a CH340
+adapter).
 
-Dois modos de mapeamento de coordenadas:
+Two coordinate-mapping modes:
 
-  padrao (homografia): usa calibration.json (4 cantos clicados em
-    calibration.py ou gerados por auto_calibrate.py). Generico para
-    qualquer setup, mas depende de calibracao previa.
+  default (homography): uses calibration.json (4 corners clicked in
+    calibration.py or produced by auto_calibrate.py). Generic for any setup,
+    but depends on a prior calibration.
 
-  --mon2 (mapeamento direto): usa monitor2.py para converter a posicao
-    do frame direto em coordenadas absolutas do monitor 2 da maquina
-    alvo, sem calibration.json. ESPECIFICO para o setup atual: o
-    capturador esta no monitor 2 e captura na MESMA resolucao dele
-    (1920x1080), entao um pixel do frame corresponde 1:1 a um pixel do
-    monitor (se as resolucoes divergirem, e feita uma escala linear
-    simples, sem correcao de perspectiva). Se a geometria dos monitores
-    da maquina alvo mudar, atualize monitor2.MONITORS.
+  --mon2 (direct mapping): uses monitor2.py to convert the frame position
+    straight into absolute coordinates of the target machine's monitor 2,
+    without calibration.json. SPECIFIC to the current setup: the capture
+    device is on monitor 2 and captures at its SAME resolution (1920x1080),
+    so one frame pixel corresponds 1:1 to one monitor pixel (if the
+    resolutions differ, a simple linear scale is applied, with no perspective
+    correction). If the target machine's monitor geometry changes, update
+    monitor2.MONITORS.
 
-Pre-requisitos:
-  1. config.json com o indice/resolucao do capturador (device_scan.py)
-  2. calibration.json gerado (so no modo homografia)
-  3. Modulo CH9329 conectado via CH340 (opcional agora; sem ele roda em
-     dry-run e so imprime os frames que enviaria)
+Prerequisites:
+  1. config.json with the capture device index/resolution (device_scan.py)
+  2. calibration.json produced (homography mode only)
+  3. CH9329 module connected via CH340 (optional now; without it, it runs in
+     dry-run and only prints the frames it would send)
 
-Uso:
+Usage:
   python remote_control.py
   python remote_control.py --port COM5 --baud 9600
   python remote_control.py --mon2 --keyboard
   python remote_control.py --dry-run
 
-Na janela:
-  mover o mouse  -> move o cursor real no PC alvo (se hardware conectado)
-  botao esquerdo -> clique esquerdo no PC alvo
-  botao direito  -> clique direito no PC alvo
-  sem --keyboard: q   -> sair (nada de teclado e enviado ao alvo)
-  com --keyboard: ESC -> sair; TODAS as outras teclas (letras, digitos,
-    simbolos, Enter, Backspace, Tab, setas, Home/End/PgUp/PgDn/Delete,
-    inclusive 'q') sao encaminhadas para a maquina alvo usando a tabela
-    ABNT2 de hid_keycodes.py.
+In the window:
+  move the mouse -> moves the real cursor on the target PC (if hardware connected)
+  left button    -> left click on the target PC
+  right button   -> right click on the target PC
+  without --keyboard: q   -> quit (no keyboard is sent to the target)
+  with --keyboard: ESC -> quit; ALL the other keys (letters, digits, symbols,
+    Enter, Backspace, Tab, arrows, Home/End/PgUp/PgDn/Delete, including 'q')
+    are forwarded to the target machine using the ABNT2 table in
+    hid_keycodes.py.
 """
 import argparse
 import logging
@@ -62,8 +62,8 @@ MIN_SEND_INTERVAL = 1.0 / 60.0
 
 KEY_ESC = 27
 
-# codigos de teclas especiais retornados por cv2.waitKeyEx no Windows
-# (virtual-key code deslocado 16 bits) -> nome em hid_keycodes.NAMED_KEYS
+# special key codes returned by cv2.waitKeyEx on Windows (virtual-key code
+# shifted 16 bits) -> name in hid_keycodes.NAMED_KEYS
 SPECIAL_KEYS = {
     0x210000: "pageup",
     0x220000: "pagedown",
@@ -77,7 +77,7 @@ SPECIAL_KEYS = {
     0x2E0000: "delete",
 }
 
-# codigos ASCII de controle que viram teclas nomeadas
+# ASCII control codes that become named keys
 NAMED_ASCII = {
     8: "backspace",
     9: "tab",
@@ -88,17 +88,17 @@ NAMED_ASCII = {
 
 @dataclass
 class _MouseState:
-    """Estado mutavel do callback de mouse (ultimo alvo mostrado no
-    overlay + throttle de envio)."""
+    """Mutable state of the mouse callback (last target shown in the overlay
+    + send throttle)."""
     last_target: tuple = (0.0, 0.0)
     last_send: float = 0.0
 
 
 def frame_point_to_target(fx, fy, homography, frame_w, frame_h, target_w, target_h):
-    """Ponto do frame capturado -> ponto no espaco do alvo, preso as
-    bordas. homography=None => modo --mon2: escala linear direta (1:1
-    quando frame e monitor tem a mesma resolucao); caso contrario aplica
-    a homografia da calibracao."""
+    """Captured-frame point -> point in the target space, clamped to the
+    edges. homography=None => --mon2 mode: direct linear scale (1:1 when the
+    frame and the monitor have the same resolution); otherwise applies the
+    calibration homography."""
     if homography is None:
         tx = fx * target_w / frame_w
         ty = fy * target_h / frame_h
@@ -110,9 +110,9 @@ def frame_point_to_target(fx, fy, homography, frame_w, frame_h, target_w, target
 
 
 def key_to_hid(key_code):
-    """Converte o codigo retornado por cv2.waitKeyEx em uma acao de
-    teclado: ("named", nome), ("char", caractere) ou None se a tecla
-    nao tem encaminhamento definido."""
+    """Convert the code returned by cv2.waitKeyEx into a keyboard action:
+    ("named", name), ("char", character) or None if the key has no defined
+    forwarding."""
     if key_code is None or key_code < 0:
         return None
     name = SPECIAL_KEYS.get(key_code) or NAMED_ASCII.get(key_code)
@@ -124,8 +124,8 @@ def key_to_hid(key_code):
 
 
 def forward_key(controller, key_code):
-    """Encaminha uma tecla da janela local para a maquina alvo.
-    Retorna True se a tecla foi enviada."""
+    """Forward a key from the local window to the target machine.
+    Returns True if the key was sent."""
     action = key_to_hid(key_code)
     if action is None:
         return False
@@ -136,28 +136,28 @@ def forward_key(controller, key_code):
         else:
             controller.type_text(value, char_delay=0)
     except ValueError:
-        logger.debug("tecla sem mapeamento HID: %r", value)
+        logger.debug("key with no HID mapping: %r", value)
         return False
     return True
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", default=None, help="porta serial do CH340 (ex: COM5). Auto-detecta se omitido.")
+    parser.add_argument("--port", default=None, help="CH340 serial port (e.g. COM5). Auto-detects if omitted.")
     parser.add_argument("--baud", type=int, default=9600)
-    parser.add_argument("--dry-run", action="store_true", help="forca modo simulado, sem enviar nada")
+    parser.add_argument("--dry-run", action="store_true", help="forces simulated mode, sends nothing")
     parser.add_argument(
         "--mon2",
         action="store_true",
-        help="mapeamento direto frame->monitor 2 via monitor2.py, sem calibration.json "
-        "(especifico para capturador na mesma resolucao do monitor 2)",
+        help="direct frame->monitor 2 mapping via monitor2.py, without calibration.json "
+        "(specific to a capture device at the same resolution as monitor 2)",
     )
     parser.add_argument(
         "--keyboard",
         action="store_true",
-        help="encaminha o teclado para a maquina alvo (a saida passa a ser ESC em vez de q)",
+        help="forwards the keyboard to the target machine (the quit key becomes ESC instead of q)",
     )
-    parser.add_argument("--verbose", action="store_true", help="logging em nivel DEBUG")
+    parser.add_argument("--verbose", action="store_true", help="DEBUG-level logging")
     args = parser.parse_args()
 
     setup_logging(verbose=args.verbose)
@@ -165,11 +165,11 @@ def main():
     if args.mon2:
         homography = None
         target_w, target_h = monitor2.MON2_W, monitor2.MON2_H
-        logger.info("Modo --mon2: mapeamento direto para o monitor 2 (%dx%d), sem homografia.", target_w, target_h)
+        logger.info("--mon2 mode: direct mapping to monitor 2 (%dx%d), no homography.", target_w, target_h)
     else:
         calib = load_calibration()
         if calib is None:
-            logger.error("Nenhuma calibracao encontrada. Rode calibration.py primeiro (ou use --mon2).")
+            logger.error("No calibration found. Run calibration.py first (or use --mon2).")
             return
         homography = build_homography(calib["src_points"], calib["target_w"], calib["target_h"])
         target_w, target_h = calib["target_w"], calib["target_h"]
@@ -177,7 +177,7 @@ def main():
     config = load_config()
     cap = open_configured_capture(config)
     if cap is None:
-        logger.error("Nao foi possivel abrir o capturador. Rode device_scan.py primeiro.")
+        logger.error("Could not open the capture device. Run device_scan.py first.")
         return
 
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -185,8 +185,8 @@ def main():
 
     if args.mon2 and (frame_w, frame_h) != (monitor2.MON2_W, monitor2.MON2_H):
         logger.warning(
-            "Frame capturado (%dx%d) difere do monitor 2 (%dx%d); usando escala linear "
-            "(o 1:1 exato so vale com resolucoes iguais).",
+            "Captured frame (%dx%d) differs from monitor 2 (%dx%d); using a linear scale "
+            "(exact 1:1 only holds with equal resolutions).",
             frame_w, frame_h, monitor2.MON2_W, monitor2.MON2_H,
         )
 
@@ -199,8 +199,8 @@ def main():
     state = _MouseState()
 
     def window_point_to_target(x, y):
-        """Ponto da janela (reduzida) -> ponto no espaco do alvo (monitor
-        2 local no modo --mon2, tela calibrada no modo homografia)."""
+        """Window (reduced) point -> point in the target space (monitor 2
+        local in --mon2 mode, calibrated screen in homography mode)."""
         return frame_point_to_target(
             x * scale_x, y * scale_y, homography, frame_w, frame_h, target_w, target_h
         )
@@ -237,9 +237,9 @@ def main():
     cv2.setMouseCallback(window_name, on_mouse)
 
     if args.keyboard:
-        logger.info("Pronto. Mouse e teclado encaminhados para o PC alvo. ESC para sair.")
+        logger.info("Ready. Mouse and keyboard forwarded to the target PC. ESC to quit.")
     else:
-        logger.info("Pronto. Mova o mouse sobre a janela para controlar o PC alvo. q para sair.")
+        logger.info("Ready. Move the mouse over the window to control the target PC. q to quit.")
 
     mode_label = "MON2" if args.mon2 else "CALIB"
     kb_label = "+KB" if args.keyboard else ""
@@ -248,13 +248,13 @@ def main():
         while True:
             ret, frame = cap.read()
             if not ret:
-                logger.error("Falha ao ler frame.")
+                logger.error("Failed to read a frame.")
                 break
 
             tx, ty = state.last_target
             cv2.putText(
                 frame,
-                f"alvo=({tx:.0f},{ty:.0f})  {mode_label}{kb_label}  {'DRY-RUN' if controller.dry_run else 'ATIVO'}",
+                f"target=({tx:.0f},{ty:.0f})  {mode_label}{kb_label}  {'DRY-RUN' if controller.dry_run else 'ACTIVE'}",
                 (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.8,

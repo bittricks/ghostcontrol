@@ -1,20 +1,20 @@
 """
-Calibracao automatica por varredura de cursor: em vez de clicar os 4
-cantos manualmente, manda o cursor real (via CH9329) para os cantos da
-tela usando movimentos relativos grandes repetidos (que ficam presos no
-limite da tela do SO), e detecta onde o cursor apareceu no frame
-capturado por diferenca de imagem (cursor_detect.py).
+Automatic calibration by cursor sweep: instead of clicking the 4 corners
+by hand, it sends the real cursor (via CH9329) to the screen corners using
+large repeated relative movements (which get pinned at the OS screen edge),
+and detects where the cursor appeared in the captured frame by image diff
+(cursor_detect.py).
 
-Como nao ha rotacao/perspectiva numa captura HDMI digital (e so um
-sinal de video redigitalizado, nao uma foto em angulo), bastam os
-cantos top-left e bottom-right: os outros dois sao derivados assumindo
-um retangulo alinhado aos eixos. O resultado e salvo no mesmo formato
-de calibration.json usado pela calibracao manual.
+Since there is no rotation/perspective in a digital HDMI capture (it is
+just a re-digitized video signal, not a photo at an angle), the top-left
+and bottom-right corners suffice: the other two are derived assuming an
+axis-aligned rectangle. The result is saved in the same calibration.json
+format used by the manual calibration.
 
-Uso real (precisa do CH9329 conectado):
+Real use (needs the CH9329 connected):
   python auto_calibrate.py --target-w 1920 --target-h 1080
 
-Uso para validar a logica sem hardware:
+Use to validate the logic without hardware:
   python auto_calibrate.py --simulate
 """
 import argparse
@@ -59,19 +59,19 @@ def corners_from_diagonal(top_left, bottom_right):
 
 
 def run_calibration_sweep(controller, capture_frame_fn):
-    logger.info("Varrendo para o canto superior-esquerdo...")
+    logger.info("Sweeping to the top-left corner...")
     top_left = sweep_to_corner(controller, capture_frame_fn, (-STEP, -STEP))
     if top_left is None:
-        logger.error("Nao detectei o cursor no canto superior-esquerdo. Abortando.")
+        logger.error("Did not detect the cursor at the top-left corner. Aborting.")
         return None
-    logger.info("  detectado em %s", top_left)
+    logger.info("  detected at %s", top_left)
 
-    logger.info("Varrendo para o canto inferior-direito...")
+    logger.info("Sweeping to the bottom-right corner...")
     bottom_right = sweep_to_corner(controller, capture_frame_fn, (STEP, STEP))
     if bottom_right is None:
-        logger.error("Nao detectei o cursor no canto inferior-direito. Abortando.")
+        logger.error("Did not detect the cursor at the bottom-right corner. Aborting.")
         return None
-    logger.info("  detectado em %s", bottom_right)
+    logger.info("  detected at %s", bottom_right)
 
     return corners_from_diagonal(top_left, bottom_right)
 
@@ -80,7 +80,7 @@ def real_capture_frame_fn(cap):
     def _capture():
         ret, frame = cap.read()
         if not ret:
-            raise RuntimeError("falha ao ler frame do capturador")
+            raise RuntimeError("failed to read a frame from the capture device")
         return frame
     return _capture
 
@@ -91,8 +91,8 @@ def main():
     parser.add_argument("--target-h", type=int, default=1080)
     parser.add_argument("--port", default=None)
     parser.add_argument("--baud", type=int, default=9600)
-    parser.add_argument("--simulate", action="store_true", help="valida a logica com uma tela e cursor falsos, sem hardware")
-    parser.add_argument("--verbose", action="store_true", help="logging em nivel DEBUG")
+    parser.add_argument("--simulate", action="store_true", help="validates the logic with a fake screen and cursor, without hardware")
+    parser.add_argument("--verbose", action="store_true", help="DEBUG-level logging")
     args = parser.parse_args()
 
     setup_logging(verbose=args.verbose)
@@ -101,17 +101,17 @@ def main():
         run_simulation(args.target_w, args.target_h)
         return
 
-    # sem fallback para dry-run: auto-calibrar sem hardware nao faz sentido
+    # no fallback to dry-run: auto-calibrating without hardware makes no sense
     controller = resolve_controller(port=args.port, baud=args.baud, fallback_dry_run=False)
     if controller is None:
-        logger.error("Use --simulate para validar a logica sem hardware.")
+        logger.error("Use --simulate to validate the logic without hardware.")
         return
 
     try:
         config = load_config()
         cap = open_configured_capture(config)
         if cap is None:
-            logger.error("Nao foi possivel abrir o capturador. Rode device_scan.py primeiro.")
+            logger.error("Could not open the capture device. Run device_scan.py first.")
             return
 
         try:
@@ -127,11 +127,11 @@ def main():
         return
 
     save_calibration(corners, args.target_w, args.target_h, frame_w, frame_h)
-    logger.info("Calibracao automatica salva: %s", corners)
+    logger.info("Automatic calibration saved: %s", corners)
 
 
 class FakeTargetScreen:
-    """Simula a tela alvo + cursor para testar a logica de varredura sem hardware."""
+    """Simulates the target screen + cursor to test the sweep logic without hardware."""
 
     def __init__(self, width, height):
         self.width = width
@@ -154,7 +154,7 @@ class FakeTargetScreen:
 
 
 def run_simulation(target_w, target_h):
-    logger.info("Modo simulado: sem hardware, validando so a logica de varredura + deteccao.")
+    logger.info("Simulated mode: no hardware, validating only the sweep + detection logic.")
     fake_screen = FakeTargetScreen(target_w, target_h)
 
     capture_calls = {"count": 0}
@@ -164,22 +164,22 @@ def run_simulation(target_w, target_h):
         return fake_screen.render()
 
     corners = run_calibration_sweep(fake_screen, fake_capture_frame_fn)
-    logger.info("frames 'capturados' durante a simulacao: %s", capture_calls["count"])
+    logger.info("frames 'captured' during the simulation: %s", capture_calls["count"])
 
     if corners is None:
-        logger.error("SIMULACAO FALHOU: nao detectou os cantos.")
+        logger.error("SIMULATION FAILED: did not detect the corners.")
         return
 
     expected = corners_from_diagonal((0, 0), (target_w - 1, target_h - 1))
-    logger.info("cantos detectados: %s", corners)
-    logger.info("cantos esperados : %s", expected)
+    logger.info("detected corners: %s", corners)
+    logger.info("expected corners: %s", expected)
 
-    # tolerancia maior que 1px: o centroide do glifo do cursor fica
-    # deslocado do hotspot (ponta da seta) por um desvio pequeno e
-    # constante, nao um erro de escala -- esperado mesmo em hardware real
+    # tolerance larger than 1px: the cursor glyph's centroid is offset from
+    # the hotspot (arrow tip) by a small, constant amount, not a scale error
+    # -- expected even on real hardware
     tolerance = 10
     ok = all(abs(a[0] - b[0]) <= tolerance and abs(a[1] - b[1]) <= tolerance for a, b in zip(corners, expected))
-    logger.info("SIMULACAO OK (dentro da tolerancia esperada)" if ok else "SIMULACAO COM DIVERGENCIA")
+    logger.info("SIMULATION OK (within the expected tolerance)" if ok else "SIMULATION WITH DIVERGENCE")
 
 
 if __name__ == "__main__":

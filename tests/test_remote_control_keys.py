@@ -27,7 +27,7 @@ def test_key_to_hid_ignores_no_key_and_unknown():
     assert remote_control.key_to_hid(-1) is None
     assert remote_control.key_to_hid(None) is None
     assert remote_control.key_to_hid(0x999999) is None
-    # ESC nao e encaminhado (reservado para sair da janela)
+    # ESC is not forwarded (reserved for quitting the window)
     assert remote_control.key_to_hid(27) is None
 
 
@@ -42,14 +42,14 @@ def test_forward_key_sends_press_and_release():
     controller, sent = _controller_with_recorder()
     assert remote_control.forward_key(controller, ord("a")) is True
     assert len(sent) == 2  # press + release
-    assert sent[0][7] == 0x04  # usage do "a"
+    assert sent[0][7] == 0x04  # usage of "a"
     assert sent[1][7] == 0x00  # release
 
 
 def test_forward_key_named_enter():
     controller, sent = _controller_with_recorder()
     assert remote_control.forward_key(controller, 13) is True
-    assert sent[0][7] == 0x28  # usage do enter
+    assert sent[0][7] == 0x28  # usage of enter
 
 
 def test_forward_key_unknown_sends_nothing():

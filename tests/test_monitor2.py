@@ -2,15 +2,15 @@ import monitor2
 
 
 def test_virtual_bbox_matches_discovered_setup():
-    # geometria recalibrada empiricamente em 2026-07-02: monitor unico
-    # efetivo de 1920x1080 ocupando todo o range absoluto (ver o bloco
-    # HISTORICO DE CALIBRACAO em monitor2.py; antes era 3840x2173)
+    # geometry recalibrated empirically on 2026-07-02: a single effective
+    # 1920x1080 monitor occupying the whole absolute range (see the
+    # CALIBRATION HISTORY block in monitor2.py; it used to be 3840x2173)
     assert monitor2.VIRTUAL_W == 1920
     assert monitor2.VIRTUAL_H == 1080
 
 
 def test_mon2_offset_inside_virtual_bbox():
-    # monitor capturado hoje comeca na origem do range absoluto (0,0)
+    # the captured monitor today starts at the origin of the absolute range (0,0)
     assert (monitor2.MON2_X, monitor2.MON2_Y) == (0, 0)
     assert (monitor2.MON2_W, monitor2.MON2_H) == (1920, 1080)
 
@@ -30,13 +30,13 @@ def test_monitor_offset_in_virtual_generic():
 
 
 def test_to_virtual_origin_and_far_corner():
-    # geometria atual: offset (0,0), mapeamento 1:1 dentro do monitor
+    # current geometry: offset (0,0), 1:1 mapping inside the monitor
     assert monitor2.to_virtual(0, 0) == (monitor2.MON2_X, monitor2.MON2_Y)
     assert monitor2.to_virtual(1919, 1079) == (monitor2.MON2_X + 1919, monitor2.MON2_Y + 1079)
 
 
 def test_to_virtual_clamps_points_outside_monitor():
-    # nunca deve escapar para outro monitor
+    # must never escape to another monitor
     assert monitor2.to_virtual(-10, -10) == (monitor2.MON2_X, monitor2.MON2_Y)
     assert monitor2.to_virtual(5000, 5000) == (monitor2.MON2_X + 1919, monitor2.MON2_Y + 1079)
 

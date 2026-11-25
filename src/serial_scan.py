@@ -1,10 +1,10 @@
 """
-Lista portas seriais disponiveis e tenta identificar automaticamente
-o adaptador CH340 (usado para conectar ao modulo CH9329).
+List the available serial ports and try to auto-identify the CH340
+adapter (used to connect to the CH9329 module).
 
-O CH340 mais comum usa VID:PID 1A86:7523. Alguns clones usam 1A86:7522
-ou 1A86:55D4. Quando nao reconhecido por VID:PID, tambem casamos pelo
-texto "CH340" na descricao do dispositivo.
+The most common CH340 uses VID:PID 1A86:7523. Some clones use 1A86:7522
+or 1A86:55D4. When not recognized by VID:PID, we also match on the text
+"CH340" in the device description.
 """
 import serial.tools.list_ports as list_ports
 
@@ -29,11 +29,11 @@ def find_ch340_port():
 def main():
     ports = list(list_ports.comports())
     if not ports:
-        print("Nenhuma porta serial encontrada.")
+        print("No serial port found.")
         return
 
     for port_info in ports:
-        marker = " <-- parece ser o CH340" if is_ch340(port_info) else ""
+        marker = " <-- looks like the CH340" if is_ch340(port_info) else ""
         vid_pid = (
             f"VID:PID={port_info.vid:04X}:{port_info.pid:04X}"
             if port_info.vid is not None
@@ -43,9 +43,9 @@ def main():
 
     detected = find_ch340_port()
     if detected:
-        print(f"\nPorta sugerida para o CH9329: {detected}")
+        print(f"\nSuggested port for the CH9329: {detected}")
     else:
-        print("\nNenhum CH340 identificado automaticamente. Verifique se esta plugado e use --port manualmente.")
+        print("\nNo CH340 auto-identified. Check that it's plugged in and use --port manually.")
 
 
 if __name__ == "__main__":

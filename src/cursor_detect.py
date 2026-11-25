@@ -1,9 +1,9 @@
 """
-Deteccao do cursor do mouse no frame capturado, por diferenca entre dois
-frames tirados antes/depois de um comando de movimento. Assume que, no
-curto intervalo entre os dois frames, a unica coisa que mudou na tela e
-a posicao do cursor (pode falhar se houver video/animacao na tela nesse
-intervalo).
+Detect the mouse cursor in the captured frame by diffing two frames taken
+before/after a movement command. Assumes that, in the short interval
+between the two frames, the only thing that changed on screen is the
+cursor position (can fail if there's video/animation on screen during
+that interval).
 """
 import cv2
 import numpy as np
@@ -15,14 +15,15 @@ DILATE_KERNEL = np.ones((3, 3), np.uint8)
 
 def detect_motion_blob(frame_before, frame_after, diff_threshold=DEFAULT_DIFF_THRESHOLD, min_area=MIN_BLOB_AREA):
     """
-    Retorna o centroide (x, y) da posicao NOVA do cursor entre os dois
-    frames, ou None se nao encontrar nada significativo.
+    Return the centroid (x, y) of the cursor's NEW position between the two
+    frames, or None if nothing significant is found.
 
-    O diff entre before/after produz duas manchas: onde o cursor estava
-    (que voltou a mostrar o fundo) e onde ele esta agora (que deixou de
-    mostrar o fundo). Usamos a mediana do frame como referencia do fundo
-    para distinguir as duas: a mancha "nova" e a que mais se afasta do
-    fundo em frame_after (e estava parecida com o fundo em frame_before).
+    The before/after diff produces two blobs: where the cursor used to be
+    (now showing the background again) and where it is now (no longer
+    showing the background). We use the frame median as the background
+    reference to tell them apart: the "new" blob is the one that departs
+    most from the background in frame_after (and looked like the background
+    in frame_before).
     """
     gray_before = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
     gray_after = cv2.cvtColor(frame_after, cv2.COLOR_BGR2GRAY)
@@ -50,9 +51,9 @@ def detect_motion_blob(frame_before, frame_after, diff_threshold=DEFAULT_DIFF_TH
         mean_after = float(cv2.mean(roi_after, mask=blob_mask)[0])
         mean_before = float(cv2.mean(roi_before, mask=blob_mask)[0])
 
-        # quanto mais a mancha "se afastou" do fundo em after (e estava
-        # parecida com o fundo em before), mais provavel que seja onde
-        # o cursor apareceu agora (em vez de onde ele saiu)
+        # the more the blob "moved away" from the background in after (and
+        # looked like the background in before), the more likely it marks
+        # where the cursor appeared now (rather than where it left)
         score = abs(mean_after - background_level) - abs(mean_before - background_level)
 
         if best_score is None or score > best_score:

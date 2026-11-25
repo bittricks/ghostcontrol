@@ -1,9 +1,9 @@
-"""Configuracao de logging compartilhada pelos scripts executaveis.
+"""Shared logging configuration for the executable scripts.
 
-Ferramentas de relatorio puro (serial_scan.py, probe_devices.py,
-device_scan.py) continuam usando print() para a saida tabular que e
-o proprio proposito do script. Os demais scripts (que controlam
-hardware e tem estados de erro/aviso reais) usam logging."""
+Pure reporting tools (serial_scan.py, probe_devices.py, device_scan.py)
+keep using print() for the tabular output that is the script's whole
+purpose. The other scripts (which drive hardware and have real
+error/warning states) use logging."""
 import logging
 
 

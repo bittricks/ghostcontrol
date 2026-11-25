@@ -1,4 +1,4 @@
-"""Fecha a janela em foco na maquina alvo via Alt+F4 (HID)."""
+"""Closes the focused window on the target machine via Alt+F4 (HID)."""
 import argparse
 import time
 
@@ -16,7 +16,7 @@ def main():
     controller.key_press(NAMED_KEYS["f4"], modifier=MODIFIER_LEFT_ALT, hold_seconds=0.05)
     time.sleep(0.3)
     controller.close()
-    print("Concluido.")
+    print("Done.")
 
 
 if __name__ == "__main__":

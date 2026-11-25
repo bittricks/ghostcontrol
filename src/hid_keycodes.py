@@ -1,12 +1,13 @@
 """
-Tabela de USB HID Usage IDs (boot keyboard) usada para montar os frames
-de teclado do CH9329.
+USB HID Usage ID table (boot keyboard) used to build the CH9329 keyboard
+frames.
 
-O layout do TECLADO DA MAQUINA ALVO e ABNT2 (portugues BR), nao
-US-QWERTY: as entradas de pontuacao abaixo foram calibradas
-empiricamente contra o hardware real (ver notas em _PUNCTUATION).
+The TARGET MACHINE's keyboard layout is ABNT2 (Brazilian Portuguese), not
+US-QWERTY: the punctuation entries below were calibrated empirically
+against the real hardware (see the notes in _PUNCTUATION).
 
-MODIFIER_* sao os bits do byte de modificador (ver ch9329.py / build_keyboard_frame).
+MODIFIER_* are the bits of the modifier byte (see ch9329.py /
+build_keyboard_frame).
 """
 
 MODIFIER_LEFT_CTRL = 0x01
@@ -45,26 +46,26 @@ NAMED_KEYS = {
 }
 
 # ---------------------------------------------------------------------------
-# tabela de caracteres
+# character table
 # ---------------------------------------------------------------------------
-# Cada entrada de pontuacao tem um STATUS, e o status importa mais que o
-# valor:
+# Every punctuation entry has a STATUS, and the status matters more than the
+# value:
 #
-#   CONFIRMADO = digitado no rig e lido de volta na tela da maquina alvo.
-#   INFERIDO   = deduzido do layout ABNT2 do Windows, NUNCA medido aqui.
+#   CONFIRMED = typed on the rig and read back on the target machine's screen.
+#   INFERRED  = deduced from the Windows ABNT2 layout, NEVER measured here.
 #
-# Caractere INFERIDO nao e digitado por padrao (ver UNVERIFIED_CHARS e
-# char_to_sequence). Isso e deliberado: um usage errado nao levanta erro,
-# ele emite OUTRO glifo -- e quando o outro glifo e uma tecla morta, ele
-# ainda engole o caractere seguinte. Era exatamente o caso de "[", que
-# estava no 0x2F: neste layout o 0x2F e o acento agudo, entao "[A" saia
-# como "Á" e o lote seguia reportando ok.
+# An INFERRED character is not typed by default (see UNVERIFIED_CHARS and
+# char_to_sequence). This is deliberate: a wrong usage raises no error, it
+# emits ANOTHER glyph -- and when that other glyph is a dead key, it also
+# swallows the next character. That was exactly the case of "[", which used
+# to sit at 0x2F: in this layout 0x2F is the acute accent, so "[A" came out
+# as "A-acute" and the batch kept reporting success.
 #
-# Para promover INFERIDO -> CONFIRMADO rode probe_punctuation.py: ele
-# digita os candidatos num campo de texto do alvo e devolve o que a tela
-# mostrou.
+# To promote INFERRED -> CONFIRMED run probe_punctuation.py: it types the
+# candidates into a text field on the target and returns what the screen
+# showed.
 
-# caractere -> (usage_id, precisa_shift)
+# character -> (usage_id, needs_shift)
 _LOWER_LETTERS = {chr(ord("a") + i): (0x04 + i, False) for i in range(26)}
 _UPPER_LETTERS = {chr(ord("A") + i): (0x04 + i, True) for i in range(26)}
 
@@ -73,9 +74,9 @@ _DIGIT_USAGE = {"1": 0x1E, "2": 0x1F, "3": 0x20, "4": 0x21, "5": 0x22,
 _DIGITS = {ch: (usage, False) for ch, usage in _DIGIT_USAGE.items()}
 
 _SHIFT_DIGIT_SYMBOLS = {
-    # A fileira de digitos do ABNT2 bate com a do US, com UMA excecao:
-    # Shift+6 nao da "^", da a tecla morta de trema (ver DEAD_LITERALS).
-    # Por isso "^" NAO aparece aqui.
+    # The ABNT2 digit row matches the US one, with ONE exception: Shift+6
+    # is not "^", it is the dead diaeresis key (see DEAD_LITERALS). That is
+    # why "^" does NOT appear here.
     "!": _DIGIT_USAGE["1"], "@": _DIGIT_USAGE["2"], "#": _DIGIT_USAGE["3"],
     "$": _DIGIT_USAGE["4"], "%": _DIGIT_USAGE["5"],
     "&": _DIGIT_USAGE["7"], "*": _DIGIT_USAGE["8"], "(": _DIGIT_USAGE["9"],
@@ -85,37 +86,38 @@ _SHIFT_DIGIT_SYMBOLS = {ch: (usage, True) for ch, usage in _SHIFT_DIGIT_SYMBOLS.
 
 SPACE_USAGE = 0x2C
 
-_INTL1_ABNT = 0x87   # tecla extra entre o ";" e o Shift DIREITO (ISO Intl1)
-_INTL_BSLASH = 0x64  # tecla extra ao lado do Shift ESQUERDO (ISO 102nd)
+_INTL1_ABNT = 0x87   # extra key between ";" and the RIGHT Shift (ISO Intl1)
+_INTL_BSLASH = 0x64  # extra key next to the LEFT Shift (ISO 102nd)
 
 _PUNCTUATION = {
-    # CONFIRMADO: iguais ao US nestas duas posicoes.
+    # CONFIRMED: identical to the US layout at these two positions.
     "-": (0x2D, False), "_": (0x2D, True),
     "=": (0x2E, False), "+": (0x2E, True),
-    # CONFIRMADO: a tecla fisica que no US produz ";"/":" produz "ç"/"Ç",
-    # e o ":" de verdade sai na posicao do "/" do US (0x38). O "/" e "?"
-    # reais saem pela tecla extra ISO do ABNT2 (0x87).
+    # CONFIRMED: the physical key that produces ";"/":" on US produces
+    # "c-cedilla"/"C-cedilla" here, and the real ":" comes out at the US
+    # "/" position (0x38). The real "/" and "?" come from the extra ABNT2
+    # ISO key (0x87).
     ";": (0x38, False), ":": (0x38, True),
     "ç": (0x33, False), "Ç": (0x33, True),
     "/": (_INTL1_ABNT, False), "?": (_INTL1_ABNT, True),
-    # CONFIRMADO: pontuacao da fileira de baixo, igual ao US.
+    # CONFIRMED: bottom-row punctuation, same as US.
     ",": (0x36, False), "<": (0x36, True),
     ".": (0x37, False), ">": (0x37, True),
-    # CONFIRMADO (probe de 2026-11-07, lido no Bloco de Notas do
-    # alvo). No ABNT2 as chaves/colchetes andam UM usage para a
-    # direita em relacao ao US, porque o 0x2F virou acento agudo; e a
-    # barra invertida cai na tecla extra ao lado do Shift esquerdo, que
-    # no US nem existe. O que estava aqui antes (0x2F/0x30/0x31) emitia
-    # acento agudo, "[" e "]" -- cada um deslocado de uma casa.
+    # CONFIRMED (probe of 2026-11-07, read back in the target's Notepad).
+    # On ABNT2 the braces/brackets shift ONE usage to the right relative to
+    # US, because 0x2F became the acute accent; and the backslash falls on
+    # the extra key next to the left Shift, which does not even exist on US.
+    # What used to be here (0x2F/0x30/0x31) emitted the acute accent, "["
+    # and "]" -- each shifted by one slot.
     "[": (0x30, False), "{": (0x30, True),
     "]": (0x31, False), "}": (0x31, True),
     "\\": (_INTL_BSLASH, False), "|": (_INTL_BSLASH, True),
-    # CONFIRMADO (probe de 2026-11-07). O apostrofo NAO esta no 0x34
-    # (la e a tecla morta de til:
-    # foi assim que 'Daemon' saiu como ~Daemon~ no WhatsApp). No ABNT2
-    # ele fica na tecla a esquerda do "1", que no US e o acento grave.
+    # CONFIRMED (probe of 2026-11-07). The apostrophe is NOT at 0x34 (that
+    # is the dead tilde key: that is how 'Daemon' came out as ~Daemon~ on
+    # WhatsApp). On ABNT2 it sits on the key to the left of "1", which is
+    # the grave accent on US.
     "'": (0x35, False), '"': (0x35, True),
-    # CONFIRMADO: teclas de controle, independem de layout.
+    # CONFIRMED: control keys, layout-independent.
     " ": (SPACE_USAGE, False),
     "\n": (0x28, False),
     "\t": (0x2B, False),
@@ -130,11 +132,11 @@ CHAR_TABLE.update(_PUNCTUATION)
 
 
 def char_to_usage(char):
-    """Retorna (usage_id, modifier) para um caractere, ou None se nao suportado.
+    """Return (usage_id, modifier) for a character, or None if unsupported.
 
-    Consulta CRUA da tabela: nao aplica o portao de UNVERIFIED_CHARS. Use
-    char_to_sequence() para digitar; esta funcao existe para montar
-    atalhos (Ctrl+B, Ctrl+Shift+4), onde o glifo nao e digitado.
+    RAW table lookup: it does not apply the UNVERIFIED_CHARS gate. Use
+    char_to_sequence() to type; this function exists to build shortcuts
+    (Ctrl+B, Ctrl+Shift+4), where the glyph is not typed.
     """
     entry = CHAR_TABLE.get(char)
     if entry is None:
@@ -144,18 +146,18 @@ def char_to_usage(char):
     return usage_id, modifier
 
 
-# Teclas-mortas do ABNT2 (CONFIRMADO: probe de 2026-11-06 contra o teclado
-# real da maquina alvo, ver docs/TECLADO_ABNT2_HID.md):
-#   usage 0x2F -> ´ (agudo, sem shift)  /  ` (grave, com shift)
-#   usage 0x34 -> ~ (til, sem shift)    /  ^ (circunflexo, com shift)
-# Um acento e digitado como DOIS eventos: a tecla-morta e depois a vogal base.
-_DK_ACUTE = 0x2F   # ´  (sem shift)
-_DK_GRAVE = 0x2F   # `  (0x2F com shift)
-_DK_TILDE = 0x34   # ~  (sem shift)
-_DK_CIRC = 0x34    # ^  (0x34 com shift)
-_DK_DIAERESIS = 0x23  # ¨  (Shift+6; e por isso que Shift+6 nao da "^")
+# ABNT2 dead keys (CONFIRMED: probe of 2026-11-06 against the target
+# machine's real keyboard, see docs/ABNT2_HID_KEYBOARD.md):
+#   usage 0x2F -> acute (no shift)  /  grave (with shift)
+#   usage 0x34 -> tilde (no shift)  /  circumflex (with shift)
+# An accent is typed as TWO events: the dead key and then the base vowel.
+_DK_ACUTE = 0x2F   # acute (no shift)
+_DK_GRAVE = 0x2F   # grave (0x2F with shift)
+_DK_TILDE = 0x34   # tilde (no shift)
+_DK_CIRC = 0x34    # circumflex (0x34 with shift)
+_DK_DIAERESIS = 0x23  # diaeresis (Shift+6; that is why Shift+6 is not "^")
 
-# caractere acentuado -> (usage_tecla_morta, tecla_morta_precisa_shift, vogal_base)
+# accented character -> (dead_key_usage, dead_key_needs_shift, base_vowel)
 DEAD_COMBOS = {
     "á": (_DK_ACUTE, False, "a"), "é": (_DK_ACUTE, False, "e"),
     "í": (_DK_ACUTE, False, "i"), "ó": (_DK_ACUTE, False, "o"),
@@ -173,19 +175,19 @@ DEAD_COMBOS = {
 }
 
 
-# O glifo SOZINHO de uma tecla morta sai com tecla morta + ESPACO. Nao
-# basta acertar o usage: sem o espaco o acento fica armado e se combina
-# com o caractere seguinte. Era por isso que "=(1+$B$9)^B30" travava o
-# Excel em modo de edicao de celula -- o "^" nunca chegava, ficava
-# pendurado esperando uma vogal, e o "B" virou "B" acentuado ou nada.
+# A dead-key glyph ON ITS OWN comes out as dead key + SPACE. Getting the
+# usage right is not enough: without the space the accent stays armed and
+# combines with the next character. That is why "=(1+$B$9)^B30" froze Excel
+# in cell-edit mode -- the "^" never arrived, it hung waiting for a vowel,
+# and the "B" became an accented "B" or nothing.
 #
-# Consequencia para quem gera formula: o literal custa um espaco a mais
-# ("=2^ 3"). O Excel aceita espaco em volta de operador, mas preferimos
-# POTENCIA()/POWER() -- ver excel_locale.FUNCTIONS.
+# Consequence for anyone generating a formula: the literal costs one extra
+# space ("=2^ 3"). Excel accepts spaces around an operator, but we prefer
+# POTENCIA()/POWER() -- see excel_locale.FUNCTIONS.
 #
-# CONFIRMADO no rig em 2026-11-07: os cinco literais sairam sozinhos e
-# corretos no Bloco de Notas do alvo, com a contagem de caracteres
-# batendo (nenhum acento ficou armado engolindo o ">" seguinte).
+# CONFIRMED on the rig on 2026-11-07: the five literals came out alone and
+# correct in the target's Notepad, with the character count matching (no
+# accent stayed armed swallowing the following ">").
 DEAD_LITERALS = {
     "´": (_DK_ACUTE, False),
     "`": (_DK_GRAVE, True),
@@ -194,42 +196,43 @@ DEAD_LITERALS = {
     "¨": (_DK_DIAERESIS, True),
 }
 
-# Caracteres cujo mapeamento e INFERIDO do layout ABNT2 e nunca foi lido
-# de volta na tela deste rig. char_to_sequence() os recusa por padrao.
+# Characters whose mapping is INFERRED from the ABNT2 layout and was never
+# read back on this rig's screen. char_to_sequence() refuses them by
+# default.
 #
-# VAZIO desde 2026-11-07: probe_punctuation.py rodou no hardware pela
-# primeira vez, contra o Bloco de Notas do alvo, e os 13 candidatos
-# saiam exatamente como o gabarito:
+# EMPTY since 2026-11-07: probe_punctuation.py ran on the hardware for the
+# first time, against the target's Notepad, and the 13 candidates came out
+# exactly as the reference:
 #
 #     >[< >]< >{< >}< >\< >|<
 #     >'< >"<
-#     >´< >`< >~< >^< >¨<
+#     >acute< >grave< >tilde< >circ< >diaeresis<
 #
-# Duas conferencias independentes, porque uma so nao bastava:
+# Two independent checks, because one was not enough:
 #
-#   contagem  a barra de status marcou "51 caracteres" e "Ln 3, Col 20",
-#             que e exatamente o gabarito (49 glifos + 2 quebras). Isso
-#             prova que NENHUM caractere foi engolido -- o estrago
-#             silencioso de tecla morta tem assinatura justamente aqui.
-#   glifo     a contagem nao distingue trocas, entao os glifos foram
-#             LIDOS. A fonte 11 do Bloco de Notas deixa cada acento com
-#             ~4 pixels no frame 1920x1080, e nesse tamanho `´` e "`"
-#             sao indistinguiveis; subi a fonte para 48 antes de
-#             concluir. O par agudo/crase e o unico que uma troca
-#             esconderia da contagem, e foi conferido separado: o
-#             primeiro sobe para a direita, o segundo desce.
+#   count   the status bar read "51 characters" and "Ln 3, Col 20", which is
+#           exactly the reference (49 glyphs + 2 line breaks). That proves
+#           that NO character was swallowed -- the silent dead-key damage has
+#           its signature precisely here.
+#   glyph   the count does not catch swaps, so the glyphs were READ. At
+#           Notepad's font size 11 each accent is ~4 pixels in the 1920x1080
+#           frame, and at that size the acute and the grave are
+#           indistinguishable; I raised the font to 48 before concluding.
+#           The acute/grave pair is the only one a swap would hide from the
+#           count, and it was checked separately: the first rises to the
+#           right, the second falls.
 #
-# O conjunto fica aqui, vazio, porque o portao continua valendo para a
-# proxima entrada que alguem inferir. Promover: rode
-# probe_punctuation.py, confira na tela, e remova daqui.
+# The set stays here, empty, because the gate still applies to the next
+# entry someone infers. To promote: run probe_punctuation.py, verify on
+# screen, and remove it here.
 UNVERIFIED_CHARS = frozenset()
 
 
 class UnverifiedMapping(ValueError):
-    """Caractere com mapeamento plausivel, mas nao medido neste rig.
+    """Character with a plausible but unmeasured mapping on this rig.
 
-    Subclasse de ValueError de proposito: quem ja tratava "caractere sem
-    mapeamento" continua tratando, e nao passa batido.
+    A subclass of ValueError on purpose: whoever already handled "character
+    with no mapping" keeps handling it, and it does not slip through.
     """
 
 
@@ -238,10 +241,10 @@ def is_verified(char):
 
 
 def unverified_chars(text):
-    """Caracteres nao verificados presentes em `text`, na ordem em que
-    aparecem e sem repetir. Lista vazia = seguro digitar.
+    """Unverified characters present in `text`, in order of appearance and
+    without repetition. An empty list means it is safe to type.
 
-    Para validar um lote ANTES de mandar, em vez de descobrir no meio.
+    For validating a batch BEFORE sending, instead of finding out halfway.
     """
     seen = []
     for char in text:
@@ -254,22 +257,22 @@ def _check_verified(char, allow_unverified):
     if allow_unverified or char not in UNVERIFIED_CHARS:
         return
     raise UnverifiedMapping(
-        "caractere %r tem mapeamento ABNT2 apenas INFERIDO, nunca medido "
-        "neste rig: digitar pode emitir outro glifo em silencio (e se for "
-        "tecla morta, engolir o caractere seguinte). Rode "
-        "probe_punctuation.py e promova a entrada em hid_keycodes.py, ou "
-        "reescreva o texto sem ele." % char)
+        "character %r has an ABNT2 mapping that is only INFERRED, never "
+        "measured on this rig: typing it may silently emit another glyph "
+        "(and if it is a dead key, swallow the next character). Run "
+        "probe_punctuation.py and promote the entry in hid_keycodes.py, or "
+        "rewrite the text without it." % char)
 
 
 def char_to_sequence(char, allow_unverified=False):
-    """Retorna a lista de (usage_id, modifier) necessaria para digitar `char`.
+    """Return the list of (usage_id, modifier) needed to type `char`.
 
-    Caractere comum -> 1 evento. Acentuado via tecla-morta ABNT2 -> 2
-    eventos (tecla-morta, depois vogal). Glifo de tecla morta sozinho ->
-    2 eventos (tecla-morta, depois espaco). None se nao suportado.
+    An ordinary character -> 1 event. An accented character via an ABNT2
+    dead key -> 2 events (dead key, then vowel). A dead-key glyph on its own
+    -> 2 events (dead key, then space). None if unsupported.
 
-    Levanta UnverifiedMapping para caractere em UNVERIFIED_CHARS, a menos
-    que `allow_unverified` -- que existe para o probe, nao para pressa.
+    Raises UnverifiedMapping for a character in UNVERIFIED_CHARS, unless
+    `allow_unverified` -- which exists for the probe, not for haste.
     """
     literal = DEAD_LITERALS.get(char)
     if literal is not None:
@@ -297,24 +300,27 @@ def named_key_to_usage(name):
 
 
 # ===========================================================================
-# LAYOUTS SELECIONAVEIS
+# SELECTABLE LAYOUTS
 # ===========================================================================
-# O HID manda POSICAO de tecla; o glifo sai do layout do teclado do ALVO.
-# As tabelas acima sao o layout ABNT2 (o do rig). Para alguem em outro pais
-# usar, o layout vira DADO: um conjunto de tabelas por teclado, escolhido
-# com set_layout(). O padrao continua ABNT2, entao nada acima muda.
+# HID sends a key POSITION; the glyph comes from the TARGET's keyboard
+# layout. The tables above are the ABNT2 layout (the rig's). For someone in
+# another country to use this, the layout becomes DATA: a set of tables per
+# keyboard, chosen with set_layout(). The default stays ABNT2, so nothing
+# above changes.
 #
-# Principio de robustez internacional, que ja estava aqui e e o que torna
-# isto confiavel: caractere que o layout ativo NAO produz e RECUSADO
-# (char_to_sequence -> None), nunca digitado como outro glifo. Um usuario
-# de chines/russo/arabe nao consegue digitar o script nativo por teclado
-# fisico nenhum (isso exige IME no alvo) -- o certo e recusar e avisar,
-# nao emitir lixo. untypable_chars() deixa o chamador saber ANTES.
+# International-robustness principle, already here and what makes this
+# trustworthy: a character the active layout does NOT produce is REFUSED
+# (char_to_sequence -> None), never typed as another glyph. A user of
+# Chinese/Russian/Arabic cannot type the native script with any physical
+# keyboard (that needs an IME on the target) -- the right thing is to refuse
+# and warn, not emit garbage. untypable_chars() lets the caller know UP
+# FRONT.
 
 # --- US-QWERTY -------------------------------------------------------------
-# O layout de referencia do HID. Sem teclas mortas: no US, ~ e ` sao
-# caracteres normais (0x35), nao acentos armados. Acentuados (a, e, a...)
-# simplesmente nao existem aqui -- e sao recusados, corretamente.
+# The HID reference layout. No dead keys: on US, ~ and ` are ordinary
+# characters (0x35), not armed accents. Accented characters (a-acute,
+# e-acute, a-tilde...) simply do not exist here -- and are refused,
+# correctly.
 _US_SHIFT_DIGITS = {
     "!": (_DIGIT_USAGE["1"], True), "@": (_DIGIT_USAGE["2"], True),
     "#": (_DIGIT_USAGE["3"], True), "$": (_DIGIT_USAGE["4"], True),
@@ -343,15 +349,15 @@ _US_CHAR_TABLE.update(_DIGITS)
 _US_CHAR_TABLE.update(_US_SHIFT_DIGITS)
 _US_CHAR_TABLE.update(_US_PUNCTUATION)
 
-# --- registro --------------------------------------------------------------
+# --- registry --------------------------------------------------------------
 _LAYOUTS = {}
 
 
 def register_layout(name, char_table, dead_combos=None, dead_literals=None,
                     unverified=frozenset()):
-    """Registra um layout de teclado pelo nome. Um layout e so dados:
-    a tabela caractere->(usage, shift), e as de tecla morta (vazias em
-    layouts sem acento, como o US)."""
+    """Register a keyboard layout by name. A layout is just data: the
+    character->(usage, shift) table, and the dead-key tables (empty on
+    layouts without accents, such as US)."""
     _LAYOUTS[name] = {
         "CHAR_TABLE": dict(char_table),
         "DEAD_COMBOS": dict(dead_combos or {}),
@@ -367,43 +373,43 @@ _active_layout = "abnt2"
 
 
 def available_layouts():
-    """Nomes dos layouts registrados, em ordem."""
+    """Names of the registered layouts, in order."""
     return sorted(_LAYOUTS)
 
 
 def get_layout():
-    """Nome do layout ativo."""
+    """Name of the active layout."""
     return _active_layout
 
 
 def set_layout(name):
-    """Troca o layout ativo. Rebinda as tabelas-modulo, entao todas as
-    funcoes (char_to_usage, char_to_sequence, unverified_chars) passam a
-    enxergar o layout novo sem mudanca. Levanta ValueError se o nome nao
-    existir -- nunca cai num layout errado em silencio."""
+    """Switch the active layout. Rebinds the module-level tables, so every
+    function (char_to_usage, char_to_sequence, unverified_chars) starts
+    seeing the new layout with no change. Raises ValueError if the name does
+    not exist -- it never falls into the wrong layout silently."""
     global CHAR_TABLE, DEAD_COMBOS, DEAD_LITERALS, UNVERIFIED_CHARS, _active_layout
     if name not in _LAYOUTS:
         raise ValueError(
-            "layout %r desconhecido; disponiveis: %s"
+            "unknown layout %r; available: %s"
             % (name, ", ".join(available_layouts())))
-    tabelas = _LAYOUTS[name]
-    CHAR_TABLE = tabelas["CHAR_TABLE"]
-    DEAD_COMBOS = tabelas["DEAD_COMBOS"]
-    DEAD_LITERALS = tabelas["DEAD_LITERALS"]
-    UNVERIFIED_CHARS = tabelas["UNVERIFIED_CHARS"]
+    tables = _LAYOUTS[name]
+    CHAR_TABLE = tables["CHAR_TABLE"]
+    DEAD_COMBOS = tables["DEAD_COMBOS"]
+    DEAD_LITERALS = tables["DEAD_LITERALS"]
+    UNVERIFIED_CHARS = tables["UNVERIFIED_CHARS"]
     _active_layout = name
 
 
 def untypable_chars(text):
-    """Caracteres de `text` que o layout ATIVO nao consegue produzir --
-    na ordem, sem repetir. Vazia = tudo digitavel.
+    """Characters in `text` that the ACTIVE layout cannot produce -- in
+    order, without repetition. Empty means everything is typable.
 
-    Para um usuario de outro idioma validar ANTES: 'estes 3 caracteres
-    nao saem no layout us' em vez de um glifo faltando no meio. Letra
-    acentuada, CJK, cirilico, emoji, etc. caem aqui quando o layout nao
-    os tem."""
-    faltam = []
+    For a user of another language to validate UP FRONT: 'these 3 characters
+    do not come out on the us layout' instead of a glyph missing in the
+    middle. An accented letter, CJK, Cyrillic, emoji, etc. land here when the
+    layout does not have them."""
+    missing = []
     for ch in text:
-        if char_to_sequence(ch, allow_unverified=True) is None and ch not in faltam:
-            faltam.append(ch)
-    return faltam
+        if char_to_sequence(ch, allow_unverified=True) is None and ch not in missing:
+            missing.append(ch)
+    return missing

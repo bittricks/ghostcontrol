@@ -5,7 +5,7 @@ The password that unlocks the target is the most sensitive thing this
 project touches. This module loads it with least-leak rules.
 
 Resolution order (first hit wins):
-  1. Environment variables   -- VERIKVM_USERNAME / VERIKVM_PASSWORD
+  1. Environment variables   -- GHOSTCONTROL_USERNAME / GHOSTCONTROL_PASSWORD
   2. A .env file (gitignored) -- KEY=VALUE, in the working directory
   3. The OS secret store      -- via `keyring`, if installed
   4. Nothing                  -- the caller prompts at runtime
@@ -25,9 +25,9 @@ secrets in the environment, the keyring, or a .env you never sync.
 """
 import os
 
-ENV_USERNAME = "VERIKVM_USERNAME"
-ENV_PASSWORD = "VERIKVM_PASSWORD"
-KEYRING_SERVICE = "verikvm"
+ENV_USERNAME = "GHOSTCONTROL_USERNAME"
+ENV_PASSWORD = "GHOSTCONTROL_PASSWORD"
+KEYRING_SERVICE = "ghostcontrol"
 DEFAULT_ENV_FILE = ".env"
 
 

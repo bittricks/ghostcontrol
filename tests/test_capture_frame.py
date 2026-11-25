@@ -13,7 +13,7 @@ class FakeCapture:
         self.reads = 0
 
     def grab(self):
-        # frames descartados pelo flush anti-buffer (ver FLUSH_FRAMES)
+        # frames discarded by the anti-buffer flush (see FLUSH_FRAMES)
         self.grabs += 1
         return True
 
@@ -35,19 +35,19 @@ def imwrite_calls(monkeypatch):
 
 
 def test_capture_with_borrowed_cap_saves_png_and_keeps_cap_open(tmp_path, imwrite_calls):
-    cap = FakeCapture(frames=["frame_velho", "frame1"])
-    out = str(tmp_path / "tela.png")
+    cap = FakeCapture(frames=["stale_frame", "frame1"])
+    out = str(tmp_path / "screen.png")
 
     saved = capture_frame.capture_frame_to_file(out, cap=cap)
 
     assert saved == os.path.abspath(out)
     assert imwrite_calls == [(saved, "frame1")]
-    assert cap.released is False  # o chamador e o dono do capturador
-    assert cap.grabs == capture_frame.FLUSH_FRAMES  # flush anti-buffer executado
+    assert cap.released is False  # the caller owns the capture device
+    assert cap.grabs == capture_frame.FLUSH_FRAMES  # anti-buffer flush ran
 
 
 def test_capture_opens_and_releases_own_cap(tmp_path, imwrite_calls, monkeypatch):
-    cap = FakeCapture(frames=["frame_velho", "frame1"])
+    cap = FakeCapture(frames=["stale_frame", "frame1"])
     opened_with = []
     monkeypatch.setattr(
         capture_frame, "open_configured_capture", lambda config: opened_with.append(config) or cap
@@ -62,7 +62,7 @@ def test_capture_opens_and_releases_own_cap(tmp_path, imwrite_calls, monkeypatch
 
 def test_capture_relative_path_resolves_against_project_dir(tmp_path, imwrite_calls, monkeypatch):
     monkeypatch.setattr(capture_frame, "BASE_DIR", str(tmp_path))
-    cap = FakeCapture(frames=["frame_velho", "frame1"])
+    cap = FakeCapture(frames=["stale_frame", "frame1"])
 
     saved = capture_frame.capture_frame_to_file("captures/rel.png", cap=cap)
 
@@ -72,60 +72,60 @@ def test_capture_relative_path_resolves_against_project_dir(tmp_path, imwrite_ca
 
 def test_capture_raises_when_device_does_not_open(monkeypatch):
     monkeypatch.setattr(capture_frame, "open_configured_capture", lambda config: None)
-    with pytest.raises(RuntimeError, match="capturador"):
+    with pytest.raises(RuntimeError, match="capture device"):
         capture_frame.capture_frame_to_file("x.png", config={"capture_index": 9})
 
 
 def test_capture_raises_on_read_failure(tmp_path):
     cap = FakeCapture(frames=[])  # read() -> (False, None)
-    with pytest.raises(RuntimeError, match="ler frame"):
+    with pytest.raises(RuntimeError, match="read a frame"):
         capture_frame.capture_frame_to_file(str(tmp_path / "x.png"), cap=cap)
 
 
 def test_capture_raises_when_imwrite_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(capture_frame.cv2, "imwrite", lambda path, frame: False)
-    cap = FakeCapture(frames=["frame_velho", "frame1"])
-    with pytest.raises(RuntimeError, match="salvar PNG"):
+    cap = FakeCapture(frames=["stale_frame", "frame1"])
+    with pytest.raises(RuntimeError, match="save PNG"):
         capture_frame.capture_frame_to_file(str(tmp_path / "x.png"), cap=cap)
 
 
 # ---------------------------------------------------------------------
-# O read() descartado. Medido no rig em 2026-11-07 -- ver DISCARD_READS
-# em capture_frame.py para o experimento completo.
+# The discarded read(). Measured on the rig on 2026-11-07 -- see
+# DISCARD_READS in capture_frame.py for the full experiment.
 # ---------------------------------------------------------------------
 
-def test_descarta_um_read_inteiro_e_salva_o_seguinte(tmp_path, imwrite_calls):
-    """O pipeline fica UMA captura atrasada: o primeiro read() devolve o
-    estado da tela de quando a captura anterior aconteceu.
+def test_discards_one_whole_read_and_saves_the_next(tmp_path, imwrite_calls):
+    """The pipeline is ONE capture behind: the first read() returns the
+    screen state from when the previous capture happened.
 
-    Medido: 16 de 16 capturas unicas mostraram texto ja apagado, mesmo
-    esperando 4 segundos. Com o read() descartado, 0 de 16."""
-    cap = FakeCapture(frames=["o_que_a_tela_mostrava_antes", "o_estado_atual"])
+    Measured: 16 of 16 single captures showed already-deleted text, even
+    after waiting 4 seconds. With the read() discarded, 0 of 16."""
+    cap = FakeCapture(frames=["what_the_screen_showed_before", "the_current_state"])
 
     saved = capture_frame.capture_frame_to_file(str(tmp_path / "t.png"), cap=cap)
 
-    assert imwrite_calls == [(saved, "o_estado_atual")]
+    assert imwrite_calls == [(saved, "the_current_state")]
     assert cap.reads == capture_frame.DISCARD_READS + 1
 
 
-def test_dormir_nao_substitui_o_descarte(tmp_path, imwrite_calls):
-    """Prende a licao que custou caro: esperar nao conserta isso.
+def test_sleeping_does_not_replace_the_discard(tmp_path, imwrite_calls):
+    """Pins the lesson that cost us dearly: waiting does not fix this.
 
-    A versao antiga mandava dar 1.0s de sleep antes de capturar. O rig
-    mostrou que o atraso NAO e em segundos -- e de uma captura. Por
-    isso o numero de read() nao pode depender de tempo nenhum: se
-    alguem zerar DISCARD_READS 'porque ja tem sleep', este teste cai."""
+    The old version told you to sleep 1.0s before capturing. The rig showed
+    the lag is NOT in seconds -- it's one capture. So the number of read()
+    calls must not depend on any amount of time: if someone zeroes
+    DISCARD_READS 'because there's already a sleep', this test fails."""
     assert capture_frame.DISCARD_READS >= 1, (
-        "sem read() descartado a captura volta a mostrar o estado anterior; "
-        "sleep nao resolve (medido ate 4s)")
+        "without a discarded read() the capture shows the previous state again; "
+        "sleeping does not fix it (measured up to 4s)")
 
 
-def test_grab_sozinho_nao_conta_como_descarte(tmp_path, imwrite_calls):
-    """Os grab() continuam, mas nao sao o que destrava o pipeline.
+def test_grab_alone_does_not_count_as_a_discard(tmp_path, imwrite_calls):
+    """The grab() calls stay, but they are not what unblocks the pipeline.
 
-    Foi exatamente a confusao da versao anterior: subiram FLUSH_FRAMES
-    de 3 para 8 tentando resolver, e o sintoma continuou."""
-    cap = FakeCapture(frames=["antigo", "atual"])
+    That was exactly the previous version's confusion: they raised
+    FLUSH_FRAMES from 3 to 8 trying to fix it, and the symptom persisted."""
+    cap = FakeCapture(frames=["old", "current"])
     capture_frame.capture_frame_to_file(str(tmp_path / "t.png"), cap=cap)
     assert cap.grabs == capture_frame.FLUSH_FRAMES
-    assert cap.reads > 1, "o frame salvo nao pode vir do primeiro read()"
+    assert cap.reads > 1, "the saved frame must not come from the first read()"

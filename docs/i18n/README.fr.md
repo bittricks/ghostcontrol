@@ -1,6 +1,6 @@
 <!-- README du dépôt public. Version EN : ../README.md -->
 
-# VeriKVM
+# GhostControl
 
 **Un KVM logiciel et sans agent qui pilote votre propre machine comme le ferait une personne.**
 
@@ -24,7 +24,7 @@ MIT · basé sur un pont USB-HID CH9329 + une carte d'acquisition HDMI
 
 ## Ce que vous pouvez automatiser
 
-VeriKVM vous épargne les heures passées à surveiller un second ordinateur.
+GhostControl vous épargne les heures passées à surveiller un second ordinateur.
 Vous décrivez de petites tâches en JSON (ou réutilisez les exemples), et il
 prend en charge le travail de bureau — personnel comme professionnel — que
 l'on automatise le plus, en n'agissant que lorsque l'écran est bien celui
@@ -58,7 +58,7 @@ mauvais endroit.
 
 Tout autre KVM logiciel transmet vos frappes à l'aveugle : il ignore quelle
 fenêtre a le focus, un écran qui se reverrouille avale ce que vous tapez, et il
-annonce « envoyé » même quand rien ne s'est produit. VeriKVM boucle la boucle
+annonce « envoyé » même quand rien ne s'est produit. GhostControl boucle la boucle
 comme le ferait une personne au clavier :
 
 1. **Il lit l'écran.** Il capture le flux HDMI et classe ce qui s'y trouve
@@ -112,8 +112,8 @@ le daemon les exécute sur la cible et relit l'écran. La liste des pièces
 ## Pour commencer
 
 ```bash
-git clone https://github.com/bittricks/verikvm
-cd verikvm
+git clone https://github.com/bittricks/ghostcontrol
+cd ghostcontrol
 pip install -r requirements.txt
 
 # démarre le daemon (détecte le port série tout seul ; --layout définit la
@@ -142,7 +142,7 @@ MIT — voir [LICENSE](../../LICENSE).
 
 ## Soutenir
 
-VeriKVM est un projet bénévole. S'il vous a épargné un week-end, vous pouvez
+GhostControl est un projet bénévole. S'il vous a épargné un week-end, vous pouvez
 contribuer on-chain. **N'envoyez chaque actif que sur le réseau indiqué : se
 tromper de réseau, c'est perdre les fonds.**
 

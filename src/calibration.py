@@ -1,20 +1,20 @@
 """
-Calibracao de coordenadas: mapeia pontos do frame capturado (HDMI)
-para coordenadas da tela real do PC controlado.
+Coordinate calibration: maps points of the captured frame (HDMI) to
+coordinates of the controlled PC's real screen.
 
-Uso:
+Usage:
   python calibration.py --target-w 1920 --target-h 1080
 
-Passo 1 (calibrar): clique, na ordem, os 4 cantos da tela visivel dentro
-do frame capturado -> top-left, top-right, bottom-right, bottom-left.
-Isso gera calibration.json com a matriz de transformacao.
+Step 1 (calibrate): click, in order, the 4 corners of the screen visible
+inside the captured frame -> top-left, top-right, bottom-right, bottom-left.
+This produces calibration.json with the transformation matrix.
 
-Passo 2 (testar): apos calibrar, mova o mouse sobre a janela e veja
-a coordenada correspondente na tela real impressa em tempo real.
-Nenhum movimento de mouse e enviado ainda (sem transmissor HID).
+Step 2 (test): after calibrating, move the mouse over the window and see
+the corresponding coordinate on the real screen printed in real time. No
+mouse movement is sent yet (no HID transmitter).
 
-q -> sair
-r -> refazer calibracao
+q -> quit
+r -> redo calibration
 """
 import argparse
 import json
@@ -79,7 +79,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target-w", type=int, default=1920)
     parser.add_argument("--target-h", type=int, default=1080)
-    parser.add_argument("--verbose", action="store_true", help="logging em nivel DEBUG")
+    parser.add_argument("--verbose", action="store_true", help="DEBUG-level logging")
     args = parser.parse_args()
 
     setup_logging(verbose=args.verbose)
@@ -87,7 +87,7 @@ def main():
     config = load_config()
     cap = open_configured_capture(config)
     if cap is None:
-        logger.error("Nao foi possivel abrir o capturador. Rode device_scan.py primeiro.")
+        logger.error("Could not open the capture device. Run device_scan.py first.")
         return
 
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -105,7 +105,7 @@ def main():
         and existing.get("frame_h") == frame_h
     ):
         homography = build_homography(existing["src_points"], args.target_w, args.target_h)
-        logger.info("Calibracao existente carregada. Pressione r para recalibrar.")
+        logger.info("Existing calibration loaded. Press r to recalibrate.")
 
     win_w, win_h = fit_window_size(frame_w, frame_h)
     scale_x = frame_w / win_w
@@ -126,7 +126,7 @@ def main():
             if len(clicked_points) == 4:
                 homography = build_homography(clicked_points, args.target_w, args.target_h)
                 save_calibration(clicked_points, args.target_w, args.target_h, frame_w, frame_h)
-                logger.info("Calibracao salva em %s", CALIBRATION_PATH)
+                logger.info("Calibration saved to %s", CALIBRATION_PATH)
 
     cv2.setMouseCallback(window_name, on_mouse)
 
@@ -134,7 +134,7 @@ def main():
         while True:
             ret, frame = cap.read()
             if not ret:
-                logger.error("Falha ao ler frame.")
+                logger.error("Failed to read a frame.")
                 break
 
             if homography is None:
@@ -143,16 +143,16 @@ def main():
                     cv2.putText(frame, CORNER_LABELS[i], (int(px) + 10, int(py)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                 remaining = 4 - len(clicked_points)
                 if remaining > 0:
-                    msg = f"clique no canto: {CORNER_LABELS[len(clicked_points)]}"
+                    msg = f"click the corner: {CORNER_LABELS[len(clicked_points)]}"
                 else:
-                    msg = "calibrando..."
+                    msg = "calibrating..."
                 cv2.putText(frame, msg, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
             else:
                 x, y = last_mouse_pos
                 tx, ty = map_point(homography, x, y)
                 cv2.putText(
                     frame,
-                    f"frame=({x:.0f},{y:.0f}) -> tela=({tx:.0f},{ty:.0f})",
+                    f"frame=({x:.0f},{y:.0f}) -> screen=({tx:.0f},{ty:.0f})",
                     (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
@@ -168,7 +168,7 @@ def main():
             elif key == ord("r"):
                 clicked_points = []
                 homography = None
-                logger.info("Recalibrando, clique os 4 cantos novamente.")
+                logger.info("Recalibrating, click the 4 corners again.")
     finally:
         cap.release()
         cv2.destroyAllWindows()

@@ -1,6 +1,6 @@
 <!-- 公共仓库 README。英文版：../README.md -->
 
-# VeriKVM
+# GhostControl
 
 **一个无需代理的软件 KVM，像真人一样操作你自己的电脑。**
 
@@ -21,7 +21,7 @@ MIT · 基于 CH9329 USB-HID 桥接器 + 一块 HDMI 采集卡
 
 ## 它能帮你自动化什么
 
-VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务（或直接套用示例），它就会
+GhostControl 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务（或直接套用示例），它就会
 替你完成日常和工作中最常见的那类桌面操作——而且只在屏幕确实是任务所预期的那一个时才动手：
 
 - **回复聊天和消息**——WhatsApp Web、Telegram、Slack、Teams：发现新消息、打出回复、发送。
@@ -40,7 +40,7 @@ VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务
 ## 为什么选它
 
 其他软件 KVM 都在盲目地转发你的按键：它不知道哪个窗口在焦点上，屏幕一旦重新锁定就会把
-你的输入吞掉，而且哪怕什么都没发生，它也照样报告"已发送"。VeriKVM 则像坐在键盘前的人一样
+你的输入吞掉，而且哪怕什么都没发生，它也照样报告"已发送"。GhostControl 则像坐在键盘前的人一样
 把整个过程闭环：
 
 1. **读取屏幕。** 采集 HDMI 画面，判别屏幕上真正显示的是什么——桌面、正确的应用、锁屏、
@@ -82,8 +82,8 @@ VeriKVM 帮你省下盯着第二台电脑的时间。你用 JSON 写好小任务
 ## 快速上手
 
 ```bash
-git clone https://github.com/bittricks/verikvm
-cd verikvm
+git clone https://github.com/bittricks/ghostcontrol
+cd ghostcontrol
 pip install -r requirements.txt
 
 # 启动守护进程（自动识别串口；--layout 指定目标机键盘布局，默认 abnt2）
@@ -108,7 +108,7 @@ MIT——见 [LICENSE](../../LICENSE)。
 
 ## 支持
 
-VeriKVM 是一个志愿项目。如果它帮你省下了一个周末，欢迎在链上出一份力。
+GhostControl 是一个志愿项目。如果它帮你省下了一个周末，欢迎在链上出一份力。
 **每种资产只在所列网络上发送——发错网络，钱就没了。**
 
 **Bitcoin（比特币）**

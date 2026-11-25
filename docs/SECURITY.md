@@ -2,7 +2,7 @@
 
 ## Scope: your own machines
 
-VeriKVM is built to control **a second machine that belongs to you**, with
+GhostControl is built to control **a second machine that belongs to you**, with
 **your own credentials**, over two cables you plugged in yourself. That is
 the entire intended use, and it's what makes the design legitimate: the owner
 operating their own equipment has nothing to hide from and no one to evade.
@@ -13,7 +13,7 @@ that only serves misuse, keep the framing explicit, and fail closed.
 
 ## Threat model
 
-**What VeriKVM is.** An agentless, OS-level automation and remote-control
+**What GhostControl is.** An agentless, OS-level automation and remote-control
 tool. Input goes through a CH9329 USB-HID bridge; the screen comes back over
 an HDMI capture card. The target runs no agent, driver, or remote-desktop
 software.
@@ -45,8 +45,8 @@ exposes none.
   machines with cloud-synced folders (OneDrive, Dropbox, iCloud), a file
   inside a synced folder is uploaded in cleartext even when `.gitignore`
   excludes it from git — keep secrets out of synced trees.
-- **How it loads (`credentials.py`).** In order: the `VERIKVM_USERNAME` /
-  `VERIKVM_PASSWORD` environment variables, then a gitignored `.env` file
+- **How it loads (`credentials.py`).** In order: the `GHOSTCONTROL_USERNAME` /
+  `GHOSTCONTROL_PASSWORD` environment variables, then a gitignored `.env` file
   (copy `.env.example`), then the OS keyring. The password is never written
   to the repo and never logged — `redact()` keeps it out of log lines, and
   the `Credentials` repr hides it from tracebacks.

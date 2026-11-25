@@ -1,4 +1,4 @@
-# VeriKVM takes donations in crypto — see the README's Support section for
+# GhostControl takes donations in crypto — see the README's Support section for
 # the addresses (Bitcoin, Ethereum/EVM, Solana, Tron, Monero). Monero keeps
 # both the maintainer and the donor anonymous; the others are pseudonymous
 # on-chain and not tied to any public identity.
@@ -8,4 +8,4 @@
 # below to light up the native Sponsor button.
 #
 # The Sponsor button links to the README's Support section.
-custom: ["https://github.com/bittricks/verikvm#support"]
+custom: ["https://github.com/bittricks/ghostcontrol#support"]

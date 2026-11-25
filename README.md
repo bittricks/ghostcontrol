@@ -1,6 +1,6 @@
 <!-- Public-repo README. PT version: README.pt-BR.md -->
 
-# VeriKVM
+# GhostControl
 
 **An agentless software KVM that operates your own machine like a human.**
 
@@ -24,7 +24,7 @@ MIT · built on a CH9329 USB-HID bridge + an HDMI capture card
 
 ## What you can automate
 
-VeriKVM saves you the hours you'd spend babysitting a second computer. You
+GhostControl saves you the hours you'd spend babysitting a second computer. You
 write small JSON tasks (or reuse the examples), and it carries out the
 everyday and at-work desktop work people automate most — always acting only
 when the screen is the one the task expects:
@@ -53,7 +53,7 @@ screen verification so a task never types into the wrong place.
 
 Every other software KVM forwards your keystrokes blindly — it has no idea
 which window has focus, a re-locked screen eats your input, and it reports
-"sent OK" even when nothing happened. VeriKVM closes the loop the way a
+"sent OK" even when nothing happened. GhostControl closes the loop the way a
 person at the keyboard does:
 
 1. **Reads the screen.** Captures the HDMI feed and classifies what's really
@@ -103,8 +103,8 @@ executes them on the target and reads the screen back. See
 ## Getting started
 
 ```bash
-git clone https://github.com/bittricks/verikvm
-cd verikvm
+git clone https://github.com/bittricks/ghostcontrol
+cd ghostcontrol
 pip install -r requirements.txt
 
 # start the daemon (auto-detects the serial port; --layout sets the
@@ -132,7 +132,7 @@ MIT — see [LICENSE](LICENSE).
 
 ## Support
 
-VeriKVM is a volunteer project. If it saved you a weekend, you can chip in
+GhostControl is a volunteer project. If it saved you a weekend, you can chip in
 on-chain. **Send each asset only on the network listed — a wrong network
 means the funds are lost.**
 

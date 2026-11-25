@@ -1,18 +1,18 @@
 """
-Utilitarios de analise de frames para o daemon: deteccao de mudanca
-visual, template matching, OCR de regiao e diff de screenshots.
+Frame-analysis utilities for the daemon: visual-change detection, template
+matching, region OCR and screenshot diffing.
 
-Nenhum deste modulo abre janelas cv2; tudo opera sobre numpy arrays ou
-arquivos PNG, sendo seguro chamar de qualquer thread/contexto headless.
+None of this module opens cv2 windows; everything operates on numpy arrays
+or PNG files, so it is safe to call from any thread/headless context.
 
-Dependencias opcionais
+Optional dependencies
 ======================
-- pytesseract + Tesseract-OCR: necessarios para ocr_region_from_frame e
-  wait_for_text. Se nao instalados, essas funcoes levantam RuntimeError
-  com instrucoes de instalacao.
+- pytesseract + Tesseract-OCR: required for ocr_region_from_frame and
+  wait_for_text. If not installed, those functions raise RuntimeError with
+  installation instructions.
 
-  Instalar: pip install pytesseract
-  Tesseract binario: https://github.com/UB-Mannheim/tesseract/wiki
+  Install: pip install pytesseract
+  Tesseract binary: https://github.com/UB-Mannheim/tesseract/wiki
 """
 import logging
 import os
@@ -31,13 +31,12 @@ except ImportError:
     _TESSERACT_OK = False
 
 
-# No Windows o instalador do Tesseract NAO poe o binario no PATH. O
-# resultado e que `import pytesseract` funciona, `_TESSERACT_OK` fica True
-# e so na primeira chamada real aparece TesseractNotFoundError -- foi por
-# isso que este projeto documentou "OCR indisponivel nesta maquina"
-# durante meses tendo o Tesseract 5.4 instalado em Program Files.
-# Procurar nos caminhos padrao custa dois os.path.exists e remove a
-# pegadinha.
+# On Windows the Tesseract installer does NOT put the binary on PATH. The
+# result is that `import pytesseract` works, `_TESSERACT_OK` is True, and
+# only on the first real call does TesseractNotFoundError appear -- that is
+# why this project documented "OCR unavailable on this machine" for months
+# while Tesseract 5.4 was installed in Program Files. Looking in the default
+# paths costs two os.path.exists and removes the trap.
 TESSERACT_CANDIDATES = (
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
@@ -45,10 +44,10 @@ TESSERACT_CANDIDATES = (
 
 
 def locate_tesseract(candidates=TESSERACT_CANDIDATES):
-    """Aponta pytesseract para o binario, se ele nao estiver no PATH.
+    """Point pytesseract at the binary, if it is not on PATH.
 
-    Respeita TESSERACT_CMD no ambiente e nao sobrescreve um caminho ja
-    configurado pelo chamador. Retorna o caminho em uso, ou None.
+    Respects TESSERACT_CMD in the environment and does not overwrite a path
+    already configured by the caller. Returns the path in use, or None.
     """
     if not _TESSERACT_OK:
         return None
@@ -61,7 +60,7 @@ def locate_tesseract(candidates=TESSERACT_CANDIDATES):
     for path in (os.environ.get("TESSERACT_CMD"),) + tuple(candidates):
         if path and os.path.exists(path):
             pytesseract.pytesseract.tesseract_cmd = path
-            logger.debug("Tesseract encontrado em %s", path)
+            logger.debug("Tesseract found at %s", path)
             return path
 
     found = shutil.which("tesseract")
@@ -76,33 +75,33 @@ if _TESSERACT_OK:
 
 
 # ---------------------------------------------------------------------------
-# idioma do OCR
+# OCR language
 # ---------------------------------------------------------------------------
-#: Preferencia de idioma quando o chamador nao pede um. A tela do alvo
-#: esta em portugues, entao "por" vem primeiro -- mas so se estiver
-#: INSTALADO.
+#: Language preference when the caller does not ask for one. The target
+#: screen is in Portuguese, so "por" comes first -- but only if it is
+#: INSTALLED.
 #:
-#: Ate 2026-11-07 o padrao era "por" cravado em ocr_region_from_frame,
-#: find_text_in_frame e nos passos expect/verify/ocr_region do daemon.
-#: Esta maquina so tem o pacote `eng`, entao TODO `expect` sem lang
-#: explicito morria com um erro do Tesseract sobre TESSDATA_PREFIX --
-#: uma falha de instalacao disfarcada de falha de verificacao. Custou
-#: um lote de abertura do Bloco de Notas para aparecer, porque os
-#: caminhos que funcionavam (read_name_box, check_state) ja pediam
-#: "eng" na mao e escondiam o problema.
-LANG_PREFERENCIA = ("por", "eng")
+#: Until 2026-11-07 the default was "por" hardcoded in ocr_region_from_frame,
+#: find_text_in_frame and in the daemon's expect/verify/ocr_region steps.
+#: This machine only has the `eng` package, so EVERY `expect` without an
+#: explicit lang died with a Tesseract error about TESSDATA_PREFIX -- an
+#: installation failure disguised as a verification failure. It took a
+#: Notepad-opening batch to surface, because the paths that worked
+#: (read_name_box, check_state) already asked for "eng" by hand and hid the
+#: problem.
+LANG_PREFERENCE = ("por", "eng")
 
-#: Modelos que o Tesseract lista junto com os idiomas mas que nao leem
-#: texto. `osd` so detecta orientacao e script.
-NAO_SAO_IDIOMAS = frozenset({"osd", "equ"})
+#: Models that Tesseract lists alongside the languages but that do not read
+#: text. `osd` only detects orientation and script.
+NOT_LANGUAGES = frozenset({"osd", "equ"})
 
 _LANGS_CACHE = None
 
 
-def available_languages(recarregar=False):
-    """Idiomas que o Tesseract desta maquina realmente tem instalados."""
+def available_languages(reload=False):
+    """Languages this machine's Tesseract actually has installed."""
     global _LANGS_CACHE
-    if _LANGS_CACHE is not None and not recarregar:
+    if _LANGS_CACHE is not None and not reload:
         return _LANGS_CACHE
     if not _TESSERACT_OK:
         _LANGS_CACHE = ()
@@ -116,37 +115,37 @@ def available_languages(recarregar=False):
 
 
 def resolve_lang(lang=None):
-    """Devolve um idioma que da para usar, ou explica o que falta.
+    """Return a usable language, or explain what is missing.
 
-    `None` escolhe o primeiro de LANG_PREFERENCIA que esteja instalado.
-    Um pedido explicito e respeitado; se faltar o pacote, o erro NOMEIA
-    o que existe, em vez de repassar a mensagem do Tesseract sobre
-    TESSDATA_PREFIX -- que manda procurar a variavel de ambiente errada
-    quando o problema e simplesmente que o idioma nao foi baixado.
+    `None` picks the first of LANG_PREFERENCE that is installed. An explicit
+    request is respected; if the package is missing, the error NAMES what
+    exists, instead of forwarding Tesseract's message about TESSDATA_PREFIX
+    -- which sends you to look at the wrong environment variable when the
+    problem is simply that the language was not downloaded.
     """
-    instalados = available_languages()
+    installed = available_languages()
     if lang:
-        faltando = [p for p in str(lang).split("+") if p not in instalados]
-        if faltando and instalados:
+        missing = [p for p in str(lang).split("+") if p not in installed]
+        if missing and installed:
             raise RuntimeError(
-                "Tesseract nao tem o(s) idioma(s) %s. Instalados: %s. "
-                "Baixe o .traineddata em "
-                "https://github.com/tesseract-ocr/tessdata ou passe "
-                "lang com um dos instalados."
-                % ("+".join(faltando), ", ".join(instalados)))
+                "Tesseract does not have the language(s) %s. Installed: %s. "
+                "Download the .traineddata from "
+                "https://github.com/tesseract-ocr/tessdata or pass lang with "
+                "one of the installed ones."
+                % ("+".join(missing), ", ".join(installed)))
         return lang
-    for preferido in LANG_PREFERENCIA:
-        if preferido in instalados:
-            return preferido
-    # Nenhum preferido instalado: pega qualquer um que seja idioma de
-    # verdade. `osd` nao e -- e o modelo de orientacao e script, e
-    # mandar OCR nele nao le texto nenhum. Ele aparece em toda
-    # instalacao do Tesseract e vinha ANTES de `por` na ordem
-    # alfabetica, entao sem este filtro o acaso decidiria.
-    outros = [n for n in instalados if n not in NAO_SAO_IDIOMAS]
-    if outros:
-        return outros[0]
-    return LANG_PREFERENCIA[0]
+    for preferred in LANG_PREFERENCE:
+        if preferred in installed:
+            return preferred
+    # No preferred language installed: pick any real language. `osd` is not
+    # one -- it is the orientation-and-script model, and running OCR on it
+    # reads no text at all. It shows up in every Tesseract install and came
+    # BEFORE `por` in alphabetical order, so without this filter chance
+    # would decide.
+    others = [n for n in installed if n not in NOT_LANGUAGES]
+    if others:
+        return others[0]
+    return LANG_PREFERENCE[0]
 
 
 # ---------------------------------------------------------------------------
@@ -155,38 +154,38 @@ def resolve_lang(lang=None):
 
 def wait_for_change(cap, flush_frames=8, threshold=3.0, timeout=10.0,
                     region=None, settle_ms=300):
-    """Aguarda mudanca visual significativa na tela capturada.
+    """Wait for a significant visual change on the captured screen.
 
-    Parametros
+    Parameters
     ----------
-    cap          : cv2.VideoCapture aberto (responsabilidade do chamador fechar).
-    flush_frames : frames a descartar antes da leitura de referencia (esvazia
-                   buffer do driver para garantir frame atual).
-    threshold    : media de diferenca por pixel (0-255) que caracteriza mudanca.
-                   Valores tipicos: 1-3 para mudancas sutis, 5-10 para mudancas
-                   obvias (troca de janela, dialogo abrindo).
-    timeout      : tempo maximo de espera em segundos.
-    region       : [x, y, w, h] para limitar a analise a uma regiao da tela;
-                   None = tela inteira.
-    settle_ms    : ms de ESTABILIZACAO — apos detectar mudanca, espera ate
-                   o score cair abaixo de threshold por settle_ms ms antes de
-                   confirmar. Util para animacoes/carregamento progressivo.
-                   0 = confirma na primeira deteccao, sem esperar estabilizar.
+    cap          : open cv2.VideoCapture (the caller is responsible for closing it).
+    flush_frames : frames to discard before the reference read (drains the
+                   driver buffer to guarantee a current frame).
+    threshold    : mean per-pixel difference (0-255) that counts as a change.
+                   Typical values: 1-3 for subtle changes, 5-10 for obvious
+                   ones (window switch, dialog opening).
+    timeout      : maximum wait in seconds.
+    region       : [x, y, w, h] to limit the analysis to a screen region;
+                   None = whole screen.
+    settle_ms    : SETTLING ms -- after detecting a change, wait until the
+                   score drops below threshold for settle_ms ms before
+                   confirming. Useful for animations/progressive loading.
+                   0 = confirm on first detection, without waiting to settle.
 
-    Retorna dict
+    Returns dict
     ------------
     {"changed": bool, "elapsed": float, "score": float}
-    - changed: True se mudanca foi detectada (mesmo que timeout tenha expirado
-      antes de estabilizar — indica que algo comecou a mudar).
-    - elapsed: segundos decorridos.
-    - score: ultimo score de diferenca medido.
+    - changed: True if a change was detected (even if the timeout expired
+      before settling -- indicates something started to change).
+    - elapsed: seconds elapsed.
+    - score: last difference score measured.
     """
-    # Frame de referencia (com flush para garantir estado atual)
+    # Reference frame (with flush to guarantee the current state)
     for _ in range(flush_frames):
         cap.grab()
     ret, ref = cap.read()
     if not ret or ref is None:
-        raise RuntimeError("falha ao ler frame de referencia para wait_for_change")
+        raise RuntimeError("failed to read the reference frame for wait_for_change")
 
     ref_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
     rx, ry, rw, rh = (region or [0, 0, ref_gray.shape[1], ref_gray.shape[0]])
@@ -199,7 +198,7 @@ def wait_for_change(cap, flush_frames=8, threshold=3.0, timeout=10.0,
     last_score = 0.0
 
     while time.monotonic() < deadline:
-        time.sleep(0.05)  # ~20 fps de polling; nao faz flush no loop (continuo)
+        time.sleep(0.05)  # ~20 fps polling; no flush in the loop (continuous)
         ret, frame = cap.read()
         if not ret or frame is None:
             continue
@@ -211,11 +210,11 @@ def wait_for_change(cap, flush_frames=8, threshold=3.0, timeout=10.0,
         if last_score > threshold:
             if changed_at is None:
                 changed_at = time.monotonic()
-                logger.debug("wait_for_change: mudanca detectada (score=%.2f)", last_score)
-            settle_start = None  # ainda mudando; reseta timer de estabilizacao
+                logger.debug("wait_for_change: change detected (score=%.2f)", last_score)
+            settle_start = None  # still changing; reset the settle timer
         else:
             if changed_at is not None:
-                # Score caiu — comeca (ou continua) contagem de estabilizacao
+                # Score dropped -- start (or continue) the settle count
                 if settle_start is None:
                     settle_start = time.monotonic()
                 elif time.monotonic() - settle_start >= settle_s:
@@ -223,7 +222,7 @@ def wait_for_change(cap, flush_frames=8, threshold=3.0, timeout=10.0,
                     return {"changed": True, "elapsed": round(elapsed, 2),
                             "score": round(last_score, 2)}
 
-    # Timeout: retorna se houve mudanca (mesmo sem estabilizar)
+    # Timeout: report whether there was a change (even without settling)
     elapsed = timeout
     return {"changed": changed_at is not None, "elapsed": elapsed,
             "score": round(last_score, 2)}
@@ -235,31 +234,31 @@ def wait_for_change(cap, flush_frames=8, threshold=3.0, timeout=10.0,
 
 def find_image_in_frame(frame, template_path, confidence=0.85,
                         scales=(0.9, 1.0, 1.1)):
-    """Busca um template PNG dentro de frame usando cv2.matchTemplate.
+    """Search for a PNG template inside frame using cv2.matchTemplate.
 
-    Testa o template em multiplas escalas para maior robustez a pequenas
-    variacoes de tamanho (ex: DPI diferente, zoom de browser).
+    Tries the template at multiple scales for more robustness to small size
+    variations (e.g. different DPI, browser zoom).
 
-    Parametros
+    Parameters
     ----------
-    frame         : numpy array BGR (frame da tela alvo).
-    template_path : caminho para o PNG do template.
-    confidence    : limiar minimo de TM_CCOEFF_NORMED (0-1). 0.85 e um
-                    bom ponto de partida; reduza para templates com ruido.
-    scales        : tupla de fatores de escala a testar.
+    frame         : BGR numpy array (target screen frame).
+    template_path : path to the template PNG.
+    confidence    : minimum TM_CCOEFF_NORMED threshold (0-1). 0.85 is a good
+                    starting point; lower it for noisy templates.
+    scales        : tuple of scale factors to try.
 
-    Retorna dict
+    Returns dict
     ------------
     {"found": bool, "x": int, "y": int, "confidence": float}
-    - x, y: centro do match no espaco do frame (coordenadas do monitor 2).
-    - confidence: valor do melhor match (mesmo se abaixo do limiar).
+    - x, y: center of the match in the frame's space (monitor 2 coordinates).
+    - confidence: value of the best match (even if below the threshold).
     """
     if not os.path.exists(template_path):
-        raise FileNotFoundError(f"template nao encontrado: {template_path}")
+        raise FileNotFoundError(f"template not found: {template_path}")
 
     template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
     if template is None:
-        raise ValueError(f"nao foi possivel ler o template: {template_path}")
+        raise ValueError(f"could not read the template: {template_path}")
 
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     th, tw = template.shape[:2]
@@ -282,7 +281,7 @@ def find_image_in_frame(frame, template_path, confidence=0.85,
     if best_val >= confidence and best_loc is not None:
         cx = best_loc[0] + int(tw * best_scale) // 2
         cy = best_loc[1] + int(th * best_scale) // 2
-        logger.debug("find_image: encontrado em (%d,%d) conf=%.4f", cx, cy, best_val)
+        logger.debug("find_image: found at (%d,%d) conf=%.4f", cx, cy, best_val)
         return {"found": True, "x": cx, "y": cy, "confidence": round(float(best_val), 4)}
 
     return {"found": False, "confidence": round(float(best_val), 4)}
@@ -293,38 +292,39 @@ def find_image_in_frame(frame, template_path, confidence=0.85,
 # ---------------------------------------------------------------------------
 
 def ocr_region_from_frame(frame, region=None, lang=None, upscale=2):
-    """Extrai texto de uma regiao do frame usando Tesseract (via pytesseract).
+    """Extract text from a frame region using Tesseract (via pytesseract).
 
-    Pre-processamento: upscale + binarizacao Otsu para melhorar a
-    precisao do OCR em texto pequeno ou de baixo contraste.
+    Pre-processing: upscale + Otsu binarization to improve OCR accuracy on
+    small or low-contrast text.
 
-    Parametros
+    Parameters
     ----------
-    frame   : numpy array BGR.
-    region  : [x, y, w, h] ou None para o frame inteiro.
-    lang    : codigo de lingua do Tesseract (ex: "por", "eng", "por+eng").
-              None (padrao) escolhe o primeiro de LANG_PREFERENCIA que
-              estiver INSTALADO nesta maquina -- ver resolve_lang.
-    upscale : fator de ampliacao antes do OCR. 2 era fixo ate 2026-11-07;
-              virou parametro porque a 2x o Tesseract nao le rotulo curto
-              -- "FCFF" na planilha saiu "Gigg" e reprovou uma
-              pos-condicao de um lote que tinha funcionado. Nao existe
-              fator unico que sirva (ver _NAME_BOX_CONFIGS), entao quem
-              quer robustez usa find_text_in_frame(), que tenta varios.
+    frame   : BGR numpy array.
+    region  : [x, y, w, h] or None for the whole frame.
+    lang    : Tesseract language code (e.g. "por", "eng", "por+eng"). None
+              (default) picks the first of LANG_PREFERENCE that is INSTALLED
+              on this machine -- see resolve_lang.
+    upscale : magnification factor before OCR. It was fixed at 2 until
+              2026-11-07; it became a parameter because at 2x Tesseract does
+              not read a short label -- "FCFF" in the spreadsheet came out
+              "Gigg" and failed a post-condition of a batch that had worked.
+              There is no single factor that works (see _NAME_BOX_CONFIGS),
+              so whoever wants robustness uses find_text_in_frame(), which
+              tries several.
 
-    Retorna dict
+    Returns dict
     ------------
     {"text": str, "raw": str}
-    - text: texto limpo (strip de espacos e quebras de linha).
-    - raw: saida bruta do Tesseract (inclui espacos/newlines extras).
+    - text: clean text (spaces and line breaks stripped).
+    - raw: raw Tesseract output (includes extra spaces/newlines).
 
-    Levanta RuntimeError se pytesseract nao estiver instalado.
+    Raises RuntimeError if pytesseract is not installed.
     """
     if not _TESSERACT_OK:
         raise RuntimeError(
-            "pytesseract nao instalado. Instale com:\n"
+            "pytesseract not installed. Install it with:\n"
             "  pip install pytesseract\n"
-            "E baixe o Tesseract-OCR em:\n"
+            "And download Tesseract-OCR at:\n"
             "  https://github.com/UB-Mannheim/tesseract/wiki"
         )
 
@@ -336,198 +336,200 @@ def ocr_region_from_frame(frame, region=None, lang=None, upscale=2):
     else:
         roi = frame
 
-    # Teto de tamanho. Sem ele, 6x numa tela de 1920x1080 manda uma
-    # imagem de 11520x6480 para o Tesseract -- medido: passa de dois
-    # minutos e nao melhora nada, porque texto de tela cheia ja e
-    # grande. Ampliar serve para rotulo PEQUENO, e rotulo pequeno vem
-    # numa regiao pequena. O calculo do teto mora em _effective_upscale,
-    # compartilhado com find_text_in_frame para ela PREVER este teto e
-    # nao mandar o Tesseract OCR a MESMA imagem duas vezes.
-    fator = _effective_upscale(max(roi.shape[0], roi.shape[1]), upscale)
-    if fator > 1:
-        roi = cv2.resize(roi, None, fx=fator, fy=fator,
+    # Size ceiling. Without it, 6x on a 1920x1080 screen sends an
+    # 11520x6480 image to Tesseract -- measured: over two minutes and no
+    # improvement, because full-screen text is already large. Upscaling is
+    # for a SMALL label, and a small label comes in a small region. The
+    # ceiling math lives in _effective_upscale, shared with
+    # find_text_in_frame so it can PREDICT this ceiling and not send
+    # Tesseract OCR of the SAME image twice.
+    factor = _effective_upscale(max(roi.shape[0], roi.shape[1]), upscale)
+    if factor > 1:
+        roi = cv2.resize(roi, None, fx=factor, fy=factor,
                          interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     raw = pytesseract.image_to_string(binary, lang=lang, config="--psm 6")
-    return {"text": raw.strip(), "raw": raw, "upscale": fator}
+    return {"text": raw.strip(), "raw": raw, "upscale": factor}
 
 
-#: Escalas tentadas por find_text_in_frame, em ordem. A primeira e a que
-#: valia antes (2x), para nao mudar o custo do caso comum; as maiores
-#: existem porque texto curto e estreito nao sai a 2x.
+#: Scales tried by find_text_in_frame, in order. The first is what used to
+#: apply (2x), so the common case keeps its cost; the larger ones exist
+#: because short, narrow text does not come out at 2x.
 TEXT_SCALES = (2, 4, 6)
 
-#: Maior lado que vai ao Tesseract depois de ampliar. Um `expect` numa
-#: regiao pequena chega a 6x; a tela inteira fica em 2x, que e o que ja
-#: cabia. Ver o teto em ocr_region_from_frame.
-OCR_LADO_MAX = 4000
+#: Largest side sent to Tesseract after upscaling. An `expect` on a small
+#: region reaches 6x; the whole screen stays at 2x, which is what already
+#: fit. See the ceiling in ocr_region_from_frame.
+OCR_SIDE_MAX = 4000
 
 
-def _effective_upscale(maior_lado, requested):
-    """Fator de ampliacao REAL depois do teto OCR_LADO_MAX.
+def _effective_upscale(largest_side, requested):
+    """The REAL upscale factor after the OCR_SIDE_MAX ceiling.
 
-    Fonte UNICA do teto. ocr_region_from_frame amplia por este fator;
-    find_text_in_frame o usa para PREVER que varias escalas pedidas
-    colapsam no mesmo fator (numa tela cheia de 1920px as escalas 2, 4 e
-    6 viram todas 2x) e assim nao mandar o Tesseract ler os MESMOS
-    pixels duas vezes -- OCR da mesma imagem devolve o mesmo texto.
+    SINGLE source of the ceiling. ocr_region_from_frame upscales by this
+    factor; find_text_in_frame uses it to PREDICT that several requested
+    scales collapse to the same factor (on a full 1920px screen the scales
+    2, 4 and 6 all become 2x) and so avoid sending Tesseract the SAME pixels
+    twice -- OCR of the same image returns the same text.
     """
-    fator = max(1, int(requested or 1))
-    return max(1, min(fator, OCR_LADO_MAX // max(1, int(maior_lado))))
+    factor = max(1, int(requested or 1))
+    return max(1, min(factor, OCR_SIDE_MAX // max(1, int(largest_side))))
 
 
-_SEP_MILHAR_RE = re.compile(r"(?<=\d)[.\s](?=\d)")
+_THOUSANDS_SEP_RE = re.compile(r"(?<=\d)[.\s](?=\d)")
 
 
 def normalize_digits(text):
-    """Tira o separador de milhar, para comparar numero lido com esperado.
+    """Strip the thousands separator, to compare a read number with the
+    expected one.
 
-    O mesmo numero aparece de duas formas na tela conforme a celula ja
-    tenha sido formatada ou nao: "67804,852" antes, "67.804,85" depois.
-    Tirando o ponto entre digitos, os dois passam a conter "67804", que
-    e o que se procura.
+    The same number appears in two forms on screen depending on whether the
+    cell has been formatted yet: "67804,852" before, "67.804,85" after.
+    Removing the dot between digits, both come to contain "67804", which is
+    what we look for.
 
-    So mexe em separador ENTRE digitos: o "." de "Planilha1.xlsx" e a
-    virgula decimal ficam onde estao.
+    It only touches a separator BETWEEN digits: the "." of "Planilha1.xlsx"
+    and the decimal comma stay where they are.
     """
-    return _SEP_MILHAR_RE.sub("", text or "")
+    return _THOUSANDS_SEP_RE.sub("", text or "")
 
 
 def find_text_in_frame(frame, text, region=None, lang=None, scales=None,
                        numeric=False):
-    """Procura `text` numa regiao, tentando varias escalas de OCR.
+    """Search for `text` in a region, trying several OCR scales.
 
-    `numeric` compara os dois lados sem separador de milhar, para
-    conferir um VALOR calculado -- ver normalize_digits.
+    `numeric` compares the two sides without the thousands separator, to
+    check a computed VALUE -- see normalize_digits.
 
-    Devolve {"found", "text", "upscale", "tried"}.
+    Returns {"found", "text", "upscale", "tried"}.
 
-    Por que varias escalas, e nao uma melhor: medido no rig, cada escala
-    erra num glifo diferente -- a 2x "FCFF" sai "Gigg", e na Caixa de
-    Nome a 6x o "1" de "A1" desaparece enquanto a 10x o "6" de "A60"
-    virou "G". Nao ha fator vencedor.
+    Why several scales, not one best: measured on the rig, each scale misses
+    a different glyph -- at 2x "FCFF" comes out "Gigg", and in the Name Box
+    at 6x the "1" of "A1" disappears while at 10x the "6" of "A60" became a
+    "G". There is no winning factor.
 
-    Para a asked `found` a busca PARA na primeira escala que acha: achar
-    em qualquer escala e prova de presenca. Quem quer o contrario
-    (ausencia) tem que percorrer TODAS -- ver nao_encontrado_em_nenhuma
-    escala em agent_daemon._run_expect. A assimetria e deliberada: uma
-    leitura positiva prova presenca, mas nenhuma leitura positiva numa
-    escala nao prova ausencia.
+    For asked `found` the search STOPS at the first scale that matches:
+    matching at any scale is proof of presence. Whoever wants the opposite
+    (absence) must go through ALL of them -- see not_found_in_any_scale in
+    agent_daemon._run_expect. The asymmetry is deliberate: one positive read
+    proves presence, but no positive read at one scale does not prove
+    absence.
     """
-    alvo = (text or "").lower()
+    target = (text or "").lower()
     if numeric:
-        alvo = normalize_digits(alvo)
+        target = normalize_digits(target)
 
-    # Varias escalas pedidas colapsam no mesmo fator por causa do teto
-    # OCR_LADO_MAX (ver _effective_upscale): numa tela cheia de 1920px
-    # (2, 4, 6) viram todas 2x, e OCR dos mesmos pixels devolve o mesmo
-    # texto. Pular as repetidas nao muda o resultado -- muda so quantas
-    # vezes o Tesseract roda (era ~2/3 do custo do classificador de tela
-    # numa tela de bloqueio). Quando nao da para saber o tamanho (um stub
-    # de teste que nao e array), nao deduplica: cai no comportamento antigo.
+    # Several requested scales collapse to the same factor because of the
+    # OCR_SIDE_MAX ceiling (see _effective_upscale): on a full 1920px screen
+    # (2, 4, 6) all become 2x, and OCR of the same pixels returns the same
+    # text. Skipping the repeats does not change the result -- it only
+    # changes how many times Tesseract runs (it was ~2/3 of the screen
+    # classifier's cost on a lock screen). When the size cannot be known (a
+    # test stub that is not an array), it does not dedup: it falls back to
+    # the old behavior.
     try:
         if region is not None:
-            maior_lado = max(int(region[2]), int(region[3]))
+            largest_side = max(int(region[2]), int(region[3]))
         else:
-            maior_lado = max(frame.shape[0], frame.shape[1])
+            largest_side = max(frame.shape[0], frame.shape[1])
     except (AttributeError, TypeError, IndexError, ValueError):
-        maior_lado = None
+        largest_side = None
 
     tried = []
-    efetivas_vistas = set()
-    ultimo = ""
-    for escala in (scales or TEXT_SCALES):
-        if maior_lado is not None:
-            efetiva = _effective_upscale(maior_lado, escala)
-            if efetiva in efetivas_vistas:
+    seen_effective = set()
+    last = ""
+    for scale in (scales or TEXT_SCALES):
+        if largest_side is not None:
+            effective = _effective_upscale(largest_side, scale)
+            if effective in seen_effective:
                 continue
-            efetivas_vistas.add(efetiva)
-        resultado = ocr_region_from_frame(frame, region=region, lang=lang,
-                                          upscale=escala)
-        visto = resultado.get("text") or ""
-        tried.append(escala)
-        if visto:
-            ultimo = visto
-        agulha = normalize_digits(visto) if numeric else visto
-        if alvo and alvo in agulha.lower():
-            return {"found": True, "text": visto, "upscale": escala,
+            seen_effective.add(effective)
+        result = ocr_region_from_frame(frame, region=region, lang=lang,
+                                       upscale=scale)
+        seen = result.get("text") or ""
+        tried.append(scale)
+        if seen:
+            last = seen
+        needle = normalize_digits(seen) if numeric else seen
+        if target and target in needle.lower():
+            return {"found": True, "text": seen, "upscale": scale,
                     "tried": tried}
-    return {"found": False, "text": ultimo, "upscale": None, "tried": tried}
+    return {"found": False, "text": last, "upscale": None, "tried": tried}
 
 
 # ---------------------------------------------------------------------------
 # screenshot_diff
 # ---------------------------------------------------------------------------
 
-#: Caixa de Nome do Excel (canto superior esquerdo, abaixo da faixa de
-#: opcoes) num alvo 1920x1080. Calibrada contra dois frames reais com
-#: posicao conhecida ("B37" e "K9"). A regiao e APERTADA de proposito:
-#: estendendo ate ~120px ela engole o chevron do dropdown e os botoes
-#: X / check / fx, e o OCR passa a devolver lixo ("CGE" no lugar de "K9").
+#: Excel Name Box (top-left corner, below the ribbon) on a 1920x1080 target.
+#: Calibrated against two real frames with a known position ("B37" and
+#: "K9"). The region is TIGHT on purpose: extending it to ~120px swallows
+#: the dropdown chevron and the X / check / fx buttons, and the OCR starts
+#: returning garbage ("CGE" instead of "K9").
 NAME_BOX_REGION = [12, 186, 70, 24]
 
 _CELL_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 _CELL_RE = re.compile(r"^\$?([A-Z]{1,3})\$?([1-9][0-9]*)$")
 
-#: (upscale, psm) tentados em ordem ate um deles produzir uma referencia
-#: valida. NAO existe configuracao unica que sirva: medido contra frames
-#: reais, a 6x o Tesseract perde o "1" de "A1" (le so "A"), e a 10x le o
-#: "6" de "A60" como "G" ("AGO"). Cada escala erra num glifo diferente,
-#: entao a saida e tentar varias e deixar o parser decidir qual resultado
-#: e uma referencia de celula plausivel -- consenso, nao calibracao.
+#: (upscale, psm) tried in order until one produces a valid reference. There
+#: is NO single configuration that works: measured against real frames, at
+#: 6x Tesseract loses the "1" of "A1" (reads only "A"), and at 10x it reads
+#: the "6" of "A60" as "G" ("AGO"). Each scale misses a different glyph, so
+#: the way out is to try several and let the parser decide which result is a
+#: plausible cell reference -- consensus, not calibration.
 _NAME_BOX_CONFIGS = ((6, 7), (10, 7), (14, 8), (8, 7), (6, 8))
 
-#: Confusoes classicas do OCR. Numa referencia de celula a posicao
-#: desambigua: a parte de LETRAS vem antes da de DIGITOS, entao um "1" na
-#: parte de letras so pode ser "I", e um "I" na parte de digitos so pode
-#: ser "1". Resolver por posicao e mais confiavel que torcer pelo OCR.
+#: Classic OCR confusions. In a cell reference, the position disambiguates:
+#: the LETTER part comes before the DIGIT part, so a "1" in the letter part
+#: can only be "I", and an "I" in the digit part can only be "1". Resolving
+#: by position is more reliable than hoping for the OCR.
 _TO_DIGIT = {"I": "1", "L": "1", "O": "0", "S": "5", "B": "8", "Z": "2",
              "G": "6", "T": "7"}
 _TO_LETTER = {"1": "I", "0": "O", "5": "S", "8": "B", "2": "Z"}
 
-# Classes de glifos que o OCR da Caixa de Nome troca entre si.
+# Classes of glyphs that the Name Box OCR swaps between each other.
 #
-# Por que isto existe separado de parse_cell_ref(): aquela funcao conserta
-# cada LADO da referencia para o seu alfabeto (letras, depois digitos), e
-# isso pressupoe que o ponto de corte entre letras e digitos foi lido
-# certo. Medido no rig em 2026-11-07: "A42" foi lido como "AA2" -- o "4"
-# virou "A", de modo que o proprio corte mudou de lugar. "AA2" e uma
-# referencia perfeitamente valida (coluna AA, linha 2), entao
-# parse_cell_ref devolve "AA2" com toda a razao, e a comparacao exata com
-# "A42" reprova um goto que acertou.
+# Why this exists separately from parse_cell_ref(): that function fixes each
+# SIDE of the reference to its alphabet (letters, then digits), and that
+# assumes the cut point between letters and digits was read correctly.
+# Measured on the rig on 2026-11-07: "A42" was read as "AA2" -- the "4"
+# became an "A", so the cut itself moved. "AA2" is a perfectly valid
+# reference (column AA, row 2), so parse_cell_ref returns "AA2" quite
+# rightly, and the exact comparison with "A42" fails a goto that landed
+# correctly.
 #
-# As classes sao DISJUNTAS de proposito. Juntar "0/O" com "4/A" por
-# transitividade faria "A" e "O" caírem na mesma classe, e as colunas A e
-# O estao longe demais para isso ser aceitavel.
+# The classes are DISJOINT on purpose. Merging "0/O" with "4/A" by
+# transitivity would make "A" and "O" fall into the same class, and columns
+# A and O are too far apart for that to be acceptable.
 _CONFUSABLE_CLASSES = ("4A", "1IL", "0O", "5S", "8B", "2Z", "6G", "7T")
-_CONFUSABLE = {ch: grupo[0] for grupo in _CONFUSABLE_CLASSES for ch in grupo}
+_CONFUSABLE = {ch: group[0] for group in _CONFUSABLE_CLASSES for ch in group}
 
 
 def confusable_key(ref):
-    """Forma de uma referencia que ignora as confusoes de glifo do OCR.
+    """Form of a reference that ignores the OCR glyph confusions.
 
-    Para comparar o que foi LIDO com o que foi PEDIDO. Duas referencias
-    com a mesma chave podem ser a mesma celula lida de dois jeitos; com
-    chaves diferentes, sao celulas diferentes de verdade.
+    For comparing what was READ with what was REQUESTED. Two references with
+    the same key may be the same cell read two ways; with different keys,
+    they are genuinely different cells.
 
-    Isto enfraquece a conferencia de proposito, e vale a pena: o `goto`
-    digita a referencia em absoluto na caixa "Ir para", entao o erro que
-    ele existe para pegar e aterrissar numa celula COMPLETAMENTE outra
-    (a caixa nem recebeu o texto, e a celula ativa continua onde estava).
-    Esse caso difere em muito mais que um glifo confundivel.
+    This weakens the check on purpose, and it is worth it: `goto` types the
+    reference in absolute into the "Go To" box, so the error it exists to
+    catch is landing on a COMPLETELY different cell (the box did not even
+    receive the text, and the active cell stayed where it was). That case
+    differs by much more than one confusable glyph.
     """
     ref = "".join((ref or "").split()).upper().replace("$", "")
     return "".join(_CONFUSABLE.get(ch, ch) for ch in ref)
 
 
 def parse_cell_ref(seen):
-    """Normaliza o texto lido da Caixa de Nome numa referencia de celula.
+    """Normalize the text read from the Name Box into a cell reference.
 
-    Corrige confusoes de OCR usando a ESTRUTURA da referencia (letras e
-    depois digitos) em vez de confiar no caractere lido. Devolve None se
-    nem assim o texto virar uma referencia plausivel.
+    Fixes OCR confusions using the STRUCTURE of the reference (letters then
+    digits) instead of trusting the read character. Returns None if even so
+    the text does not become a plausible reference.
     """
     seen = "".join((seen or "").split()).upper().replace("$", "")
     if not seen:
@@ -536,8 +538,8 @@ def parse_cell_ref(seen):
     if match:
         return match.group(1) + match.group(2)
 
-    # Sem casar: separa no primeiro caractere que ja e digito, e conserta
-    # cada lado para o alfabeto que lhe cabe.
+    # No match: split at the first character that is already a digit, and
+    # fix each side to the alphabet that fits it.
     split = next((i for i, ch in enumerate(seen) if ch.isdigit()), None)
     if split in (None, 0):
         return None
@@ -548,34 +550,33 @@ def parse_cell_ref(seen):
 
 
 def read_name_box(frame, region=None, lang="eng"):
-    """Le a Caixa de Nome do Excel e devolve a referencia da celula ativa.
+    """Read the Excel Name Box and return the active cell's reference.
 
-    Esta e a unica forma, so com pixels, de saber se um `goto` (F5 "Ir
-    para") realmente aterrissou onde foi pedido. Sem ela um goto que falha
-    e invisivel: o lote segue digitando a partir da celula errada. Foi
-    exatamente assim que uma formula `=SOMA(B32:F32)` caiu na propria
-    linha 32 e criou uma referencia circular, cujo dialogo passou a comer
-    as teclas seguintes.
+    This is the only way, with pixels alone, to know whether a `goto` (F5 "Go
+    To") actually landed where it was asked. Without it a failed goto is
+    invisible: the batch keeps typing from the wrong cell. That is exactly
+    how a formula `=SOMA(B32:F32)` landed on row 32 itself and created a
+    circular reference, whose dialog then ate the following keys.
 
-    Usa --psm 7 (uma linha so) e lista branca de caracteres: sem isso o
-    OCR inventa pontuacao e o texto nunca casa com a referencia.
+    Uses --psm 7 (a single line) and a character whitelist: without it the
+    OCR invents punctuation and the text never matches the reference.
 
-    Retorna a referencia normalizada em maiusculas (ex: "B37"), ou None se
-    o que foi lido nao se parece com uma referencia de celula.
+    Returns the reference normalized in uppercase (e.g. "B37"), or None if
+    what was read does not look like a cell reference.
     """
     if not _TESSERACT_OK:
         raise RuntimeError(
-            "leitura da Caixa de Nome exige o Tesseract-OCR instalado")
+            "reading the Name Box requires Tesseract-OCR installed")
 
     x, y, w, h = region or NAME_BOX_REGION
     roi = frame[y:y + h, x:x + w]
     if roi.size == 0:
         return None
-    # Vazia ou com texto? Sao situacoes DIFERENTES e a distincao importa:
-    # a Caixa de Nome fica em branco quando o Excel esta em modo de edicao
-    # de celula (e ali o F5 nem navega), enquanto "tem texto mas o OCR nao
-    # decifrou" e so fragilidade de leitura. Confundir as duas faz um OCR
-    # ruim parecer um estado perigoso -- ou pior, o contrario.
+    # Empty or with text? These are DIFFERENT situations and the distinction
+    # matters: the Name Box goes blank when Excel is in cell-edit mode (and
+    # there F5 does not even navigate), whereas "has text but the OCR did not
+    # decode it" is just read fragility. Confusing the two makes a bad OCR
+    # look like a dangerous state -- or worse, the other way around.
     probe = cv2.cvtColor(
         cv2.resize(roi, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC),
         cv2.COLOR_BGR2GRAY)
@@ -583,7 +584,7 @@ def read_name_box(frame, region=None, lang="eng"):
                                  cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     ink = min(float((probe_bin == 0).mean()), float((probe_bin == 255).mean()))
     if ink < 0.01:
-        return ""     # visualmente em branco
+        return ""     # visually blank
 
     for scale, psm in _NAME_BOX_CONFIGS:
         up = cv2.resize(roi, None, fx=scale, fy=scale,
@@ -591,7 +592,7 @@ def read_name_box(frame, region=None, lang="eng"):
         gray = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(
             gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # Margem: o Tesseract perde caractere colado na borda da imagem.
+        # Margin: Tesseract loses a character stuck to the image edge.
         binary = cv2.copyMakeBorder(binary, 20, 20, 20, 20,
                                     cv2.BORDER_CONSTANT, value=int(binary[0, 0]))
         raw = pytesseract.image_to_string(
@@ -604,32 +605,32 @@ def read_name_box(frame, region=None, lang="eng"):
 
 
 def screenshot_diff(before_path, after_path, diff_threshold=25, min_area=50):
-    """Compara dois PNGs e retorna as regioes que mudaram.
+    """Compare two PNGs and return the regions that changed.
 
-    Parametros
+    Parameters
     ----------
-    before_path    : caminho para o PNG "antes".
-    after_path     : caminho para o PNG "depois".
-    diff_threshold : limiar de diferenca por pixel (0-255) para considerar
-                     alterado. 25 e robusto a ruido de compressao JPEG/variacao
-                     de capturadora; reduza para detectar mudancas sutis.
-    min_area       : area minima em pixels para uma regiao ser reportada
-                     (filtra ruido de pixel isolado).
+    before_path    : path to the "before" PNG.
+    after_path     : path to the "after" PNG.
+    diff_threshold : per-pixel difference threshold (0-255) to count as
+                     changed. 25 is robust to JPEG compression noise/capture
+                     device variation; lower it to detect subtle changes.
+    min_area       : minimum area in pixels for a region to be reported
+                     (filters isolated-pixel noise).
 
-    Retorna dict
+    Returns dict
     ------------
     {"changed_pct": float, "regions": [[x,y,w,h],...], "diff_path": str|None}
-    - changed_pct: percentual de pixels alterados (0-100).
-    - regions: bounding boxes das regioes com mudanca.
-    - diff_path: caminho do PNG de diff visual (after com retangulos vermelhos),
-                 ou None se nenhuma mudanca foi detectada.
+    - changed_pct: percentage of changed pixels (0-100).
+    - regions: bounding boxes of the changed regions.
+    - diff_path: path of the visual diff PNG (after, with red rectangles), or
+                 None if no change was detected.
     """
     before = cv2.imread(before_path)
     after = cv2.imread(after_path)
     if before is None:
-        raise FileNotFoundError(f"imagem nao encontrada: {before_path}")
+        raise FileNotFoundError(f"image not found: {before_path}")
     if after is None:
-        raise FileNotFoundError(f"imagem nao encontrada: {after_path}")
+        raise FileNotFoundError(f"image not found: {after_path}")
 
     if before.shape != after.shape:
         after = cv2.resize(after, (before.shape[1], before.shape[0]),
@@ -657,7 +658,7 @@ def screenshot_diff(before_path, after_path, diff_threshold=25, min_area=50):
         stem, ext = os.path.splitext(after_path)
         diff_path = stem + "_diff" + (ext or ".png")
         cv2.imwrite(diff_path, vis)
-        logger.debug("screenshot_diff: %.2f%% alterado, %d regioes, diff em %s",
+        logger.debug("screenshot_diff: %.2f%% changed, %d regions, diff at %s",
                      changed_pct, len(regions), diff_path)
 
     return {"changed_pct": changed_pct, "regions": regions, "diff_path": diff_path}

@@ -1,10 +1,10 @@
 """
-Identifica qual indice de captura corresponde ao leitor HDMI.
+Identifies which capture index corresponds to the HDMI reader.
 
-Controles:
-  n / p  -> proximo / indice anterior
-  s      -> salva indice atual em config.json
-  q      -> sair
+Controls:
+  n / p  -> next / previous index
+  s      -> save the current index in config.json
+  q      -> quit
 """
 import cv2
 
@@ -26,20 +26,20 @@ def main():
     index = config["capture_index"]
     cap = open_capture(index)
 
-    print("Pressione n/p para trocar de dispositivo, s para salvar, q para sair.")
+    print("Press n/p to switch device, s to save, q to quit.")
 
     while True:
         if cap is None:
-            print(f"[indice {index}] nao abriu nenhum dispositivo")
+            print(f"[index {index}] did not open any device")
         else:
             ret, frame = cap.read()
             if not ret:
-                print(f"[indice {index}] abriu mas nao leu frame")
+                print(f"[index {index}] opened but did not read a frame")
             else:
                 h, w = frame.shape[:2]
                 cv2.putText(
                     frame,
-                    f"indice={index}  {w}x{h}",
+                    f"index={index}  {w}x{h}",
                     (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1,
@@ -59,7 +59,7 @@ def main():
         elif key == ord("s"):
             config["capture_index"] = index
             save_config(config)
-            print(f"indice {index} salvo em config.json")
+            print(f"index {index} saved in config.json")
 
     if cap is not None:
         cap.release()

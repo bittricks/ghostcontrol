@@ -1,8 +1,8 @@
 """
-Abre o capturador HDMI com a resolucao/fps configurados e mostra
-o feed ao vivo, junto com o fps real medido (para validar latencia).
+Opens the HDMI capture device at the configured resolution/fps and shows
+the live feed, along with the measured real fps (to validate latency).
 
-q -> sair
+q -> quit
 """
 import logging
 import time
@@ -24,13 +24,13 @@ def main():
 
     cap = open_configured_capture(config)
     if cap is None:
-        logger.error("Nao foi possivel abrir o indice %s. Rode device_scan.py primeiro.", index)
+        logger.error("Could not open index %s. Run device_scan.py first.", index)
         return
 
     actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     actual_fps_reported = cap.get(cv2.CAP_PROP_FPS)
-    logger.info("Resolucao obtida: %sx%s  fps reportado pelo driver: %s", actual_w, actual_h, actual_fps_reported)
+    logger.info("Resolution obtained: %sx%s  fps reported by the driver: %s", actual_w, actual_h, actual_fps_reported)
 
     window_name = "capture_preview"
     cv2.namedWindow(window_name)
@@ -44,7 +44,7 @@ def main():
         while True:
             ret, frame = cap.read()
             if not ret:
-                logger.error("Falha ao ler frame, encerrando.")
+                logger.error("Failed to read a frame, exiting.")
                 break
 
             frame_count += 1
@@ -57,7 +57,7 @@ def main():
 
             cv2.putText(
                 frame,
-                f"{actual_w}x{actual_h}  fps medido: {fps_measured:.1f}",
+                f"{actual_w}x{actual_h}  fps measured: {fps_measured:.1f}",
                 (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,

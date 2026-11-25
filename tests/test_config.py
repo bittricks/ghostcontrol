@@ -28,7 +28,7 @@ def test_load_config_falls_back_on_malformed_json(tmp_path, monkeypatch, caplog)
         result = config.load_config()
 
     assert result == config.DEFAULT_CONFIG
-    assert "nao foi possivel ler" in caplog.text.lower()
+    assert "could not read" in caplog.text.lower()
 
 
 def test_load_config_falls_back_when_json_is_not_an_object(tmp_path, monkeypatch):
@@ -49,33 +49,34 @@ def test_save_config_roundtrip(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# queue_dir: a fila vive FORA da arvore sincronizada do OneDrive.
-# .gitignore nao impede o upload; frames/ guarda captura da tela do alvo.
+# queue_dir: the queue lives OUTSIDE the OneDrive-synced tree.
+# .gitignore does not stop the upload; frames/ holds captures of the target's
+# screen.
 # ---------------------------------------------------------------------------
 
-def test_queue_dir_override_explicito_vence_tudo(monkeypatch):
-    monkeypatch.setenv("VERIKVM_QUEUE_DIR", r"X:\fila")
+def test_queue_dir_explicit_override_wins(monkeypatch):
+    monkeypatch.setenv("GHOSTCONTROL_QUEUE_DIR", r"X:\queue")
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\x\AppData\Local")
-    assert config.queue_dir() == r"X:\fila"
+    assert config.queue_dir() == r"X:\queue"
 
 
-def test_queue_dir_vai_para_localappdata(monkeypatch):
-    monkeypatch.delenv("VERIKVM_QUEUE_DIR", raising=False)
+def test_queue_dir_goes_to_localappdata(monkeypatch):
+    monkeypatch.delenv("GHOSTCONTROL_QUEUE_DIR", raising=False)
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\x\AppData\Local")
     assert config.queue_dir() == os.path.join(
-        r"C:\Users\x\AppData\Local", "VeriKVM", "queue")
+        r"C:\Users\x\AppData\Local", "GhostControl", "queue")
 
 
-def test_queue_dir_fallback_no_projeto_sem_localappdata(monkeypatch):
-    monkeypatch.delenv("VERIKVM_QUEUE_DIR", raising=False)
+def test_queue_dir_falls_back_to_project_without_localappdata(monkeypatch):
+    monkeypatch.delenv("GHOSTCONTROL_QUEUE_DIR", raising=False)
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
     assert config.queue_dir() == os.path.join(
         os.path.dirname(config.__file__), "queue")
 
 
-def test_queue_dir_padrao_no_windows_fica_fora_do_onedrive(monkeypatch):
-    # O caso real: LOCALAPPDATA setado. O caminho resolvido nao pode conter
-    # 'OneDrive' -- e a regressao que esta mudanca existe para impedir.
-    monkeypatch.delenv("VERIKVM_QUEUE_DIR", raising=False)
+def test_queue_dir_default_on_windows_stays_out_of_onedrive(monkeypatch):
+    # The real case: LOCALAPPDATA set. The resolved path must not contain
+    # 'OneDrive' -- that's the regression this change exists to prevent.
+    monkeypatch.delenv("GHOSTCONTROL_QUEUE_DIR", raising=False)
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\x\AppData\Local")
     assert "OneDrive" not in config.queue_dir()

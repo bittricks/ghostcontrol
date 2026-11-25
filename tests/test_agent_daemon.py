@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import os
 import tempfile
@@ -21,7 +22,7 @@ from hid_keycodes import (
 
 
 class FakeController:
-    """Controlador falso que so registra as chamadas de alto nivel."""
+    """Fake controller that only records the high-level calls."""
 
     dry_run = True
 
@@ -45,19 +46,19 @@ class FakeController:
         self.calls.append(("press_named_key", name, modifier))
 
     def type_text(self, text, char_delay=0.02, allow_unverified=False):
-        # Mesma validacao do CH9329Controller real, via char_to_sequence:
-        # com char_to_usage o fake aceitava acentuado (que no real sao
-        # dois eventos) e aceitava caractere nao medido -- um teste podia
-        # passar com texto que o rig recusa.
+        # Same validation as the real CH9329Controller, via char_to_sequence:
+        # with char_to_usage the fake accepted accented chars (which are two
+        # events on the real one) and accepted unmeasured characters -- a test
+        # could pass with text the rig refuses.
         for char in text:
             seq = char_to_sequence(char, allow_unverified=allow_unverified)
             if seq is None:
-                raise ValueError(f"caractere sem mapeamento HID: {char!r}")
+                raise ValueError(f"character with no HID mapping: {char!r}")
         self.calls.append(("type_text", text))
 
     def release_all_keys(self):
-        # Espelha o CH9329Controller real: o daemon chama isto na conexao
-        # recriada apos um erro serial, para soltar tecla presa.
+        # Mirrors the real CH9329Controller: the daemon calls this on the
+        # connection recreated after a serial error, to release a stuck key.
         self.calls.append(("release_all_keys",))
 
 
@@ -67,33 +68,33 @@ def make_ctx(controller=None, capture_fn=None):
     return ctx, controller
 
 
-# Diretorio de frames dos testes: NUNCA um caminho relativo. Com "frames"
-# um teste que caia no ctx.capture() real grava uma captura da maquina alvo
-# na raiz do repositorio -- conteudo privado, e fora do .gitignore (so
-# queue/frames/ esta coberto). Aconteceu durante um teste de mutacao.
+# Test frames directory: NEVER a relative path. With "frames" a test that
+# falls into the real ctx.capture() would save a capture of the target
+# machine in the repo root -- private content, and outside .gitignore (only
+# queue/frames/ is covered). It happened during a mutation test.
 TEST_FRAMES_DIR = tempfile.mkdtemp(prefix="agentd_frames_")
 
 
 @pytest.fixture(autouse=True)
-def bloqueia_captura_real(monkeypatch):
-    """Nenhum teste pode abrir a placa de captura do rig.
+def block_real_capture(monkeypatch):
+    """No test may open the rig's capture card.
 
-    Descoberto na pratica: depois que `goto` passou a conferir a Caixa de
-    Nome, um teste que nao fazia stub de nada leu a tela REAL da maquina
-    alvo e passou a depender do que estava aberto nela. Teste que toca
-    hardware nao e deterministico -- e, num projeto que manda teclas para
-    outra maquina, e um risco e nao so um incomodo.
+    Found in practice: once `goto` started checking the Name Box, a test that
+    stubbed nothing read the REAL target screen and started depending on what
+    was open on it. A test that touches hardware is not deterministic -- and,
+    in a project that sends keys to another machine, it is a risk and not just
+    an annoyance.
 
-    O stub e no nivel da CLASSE: um teste que precise de captura faz
-    monkeypatch na INSTANCIA (`ctx.capture_array`), que tem precedencia.
+    The stub is at the CLASS level: a test that needs capture monkeypatches
+    the INSTANCE (`ctx.capture_array`), which takes precedence.
     """
-    def sem_rig(*args, **kwargs):
+    def no_rig(*args, **kwargs):
         raise RuntimeError(
-            "captura real bloqueada nos testes; faca stub de "
-            "ctx.capture_array ou passe capture_fn")
+            "real capture blocked in tests; stub ctx.capture_array or pass "
+            "capture_fn")
 
     monkeypatch.setattr(agent_daemon.DaemonContext, "capture_array",
-                        sem_rig, raising=False)
+                        no_rig, raising=False)
 
 
 def run_steps(steps, ctx, frames_dir=TEST_FRAMES_DIR):
@@ -112,13 +113,13 @@ def test_parse_request_valid_returns_steps():
 @pytest.mark.parametrize(
     "data",
     [
-        [1, 2, 3],                                # nao e objeto
-        {},                                       # sem steps
-        {"steps": []},                            # lista vazia
-        {"steps": "click"},                       # nao e lista
-        {"steps": [42]},                          # passo nao e objeto
-        {"steps": [{"x": 1}]},                    # passo sem action
-        {"steps": [{"action": "teleport"}]},      # acao desconhecida
+        [1, 2, 3],                                # not an object
+        {},                                       # no steps
+        {"steps": []},                            # empty list
+        {"steps": "click"},                       # not a list
+        {"steps": [42]},                          # step is not an object
+        {"steps": [{"x": 1}]},                    # step with no action
+        {"steps": [{"action": "teleport"}]},      # unknown action
     ],
 )
 def test_parse_request_invalid_raises(data):
@@ -127,7 +128,7 @@ def test_parse_request_invalid_raises(data):
 
 
 # ---------------------------------------------------------------------------
-# resolucao de teclas e modificadores
+# key and modifier resolution
 # ---------------------------------------------------------------------------
 
 def test_resolve_modifiers_combines_bits():
@@ -146,7 +147,7 @@ def test_resolve_modifiers_unknown_raises():
 def test_resolve_key_named_and_char():
     assert agent_daemon.resolve_key("enter") == (named_key_to_usage("enter"), 0)
     assert agent_daemon.resolve_key("b") == (0x05, 0)
-    # maiuscula carrega o shift exigido pelo proprio caractere
+    # an uppercase carries the shift required by the character itself
     assert agent_daemon.resolve_key("B") == (0x05, MODIFIER_LEFT_SHIFT)
 
 
@@ -157,7 +158,7 @@ def test_resolve_key_unknown_raises(key):
 
 
 # ---------------------------------------------------------------------------
-# dispatch de cada acao
+# dispatch of each action
 # ---------------------------------------------------------------------------
 
 def test_click_maps_to_monitor2_virtual_coords():
@@ -280,10 +281,10 @@ def test_capture_frame_uses_default_name_and_reports_path(tmp_path):
 
     ctx, _ = make_ctx(capture_fn=fake_capture)
     ok, results = agent_daemon.execute_steps(
-        [{"action": "capture_frame"}], ctx, "007_teste", frames_dir=str(tmp_path)
+        [{"action": "capture_frame"}], ctx, "007_test", frames_dir=str(tmp_path)
     )
 
-    expected = os.path.join(str(tmp_path), "007_teste_step0.png")
+    expected = os.path.join(str(tmp_path), "007_test_step0.png")
     assert ok
     assert captured == [expected]
     assert results[0]["frame_path"] == expected
@@ -299,26 +300,26 @@ def test_capture_frame_custom_relative_path_lands_in_frames_dir(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# resiliencia
+# resilience
 # ---------------------------------------------------------------------------
 
 def test_failed_step_does_not_stop_the_batch():
     ctx, fake = make_ctx()
     steps = [
-        {"action": "type_text", "text": "€"},   # sem mapeamento HID -> erro
-        {"action": "click", "x": 1, "y": 2},    # deve rodar mesmo assim
+        {"action": "type_text", "text": "€"},   # no HID mapping -> error
+        {"action": "click", "x": 1, "y": 2},    # must run anyway
     ]
     ok, results = run_steps(steps, ctx)
 
     assert not ok
     assert results[0]["status"] == "error"
-    assert "mapeamento" in results[0]["error"]
+    assert "mapping" in results[0]["error"]
     assert results[1]["status"] == "ok"
     assert fake.calls[-1][0] == "click_absolute"
 
 
 class SerialFlakyController(FakeController):
-    """Falha com SerialException nas primeiras N chamadas de click."""
+    """Fails with SerialException on the first N click calls."""
 
     def __init__(self, failures):
         super().__init__()
@@ -327,7 +328,7 @@ class SerialFlakyController(FakeController):
     def click_absolute(self, x, y, w, h, button=BUTTON_LEFT):
         if self.failures > 0:
             self.failures -= 1
-            raise serial.SerialException("porta caiu")
+            raise serial.SerialException("port dropped")
         super().click_absolute(x, y, w, h, button)
 
 
@@ -344,12 +345,12 @@ def test_serial_error_reconnects_and_retries_step():
 
     assert ok
     assert results[0]["status"] == "ok"
-    assert len(created) == 2                      # reconectou
-    assert created[0].closed                      # conexao com erro foi fechada
-    # a conexao nova solta tecla presa ANTES de refazer a acao
-    acoes = [c[0] for c in created[1].calls]
-    assert acoes[0] == "release_all_keys"
-    assert "click_absolute" in acoes
+    assert len(created) == 2                      # reconnected
+    assert created[0].closed                      # the errored connection was closed
+    # the new connection releases stuck keys BEFORE redoing the action
+    actions = [c[0] for c in created[1].calls]
+    assert actions[0] == "release_all_keys"
+    assert "click_absolute" in actions
 
 
 def test_serial_error_twice_reports_error_and_next_step_reconnects():
@@ -366,8 +367,8 @@ def test_serial_error_twice_reports_error_and_next_step_reconnects():
 
     ctx = agent_daemon.DaemonContext(factory)
     steps = [
-        {"action": "click", "x": 1, "y": 1},   # falha 2x -> error
-        {"action": "click", "x": 2, "y": 2},   # reconecta de novo -> ok
+        {"action": "click", "x": 1, "y": 1},   # fails 2x -> error
+        {"action": "click", "x": 2, "y": 2},   # reconnects again -> ok
     ]
     ok, results = run_steps(steps, ctx)
 
@@ -378,14 +379,14 @@ def test_serial_error_twice_reports_error_and_next_step_reconnects():
     assert len(created) == 3
 
 
-def test_reconexao_solta_teclas_presas_mas_a_primeira_conexao_nao():
-    """APRENDIZADOS 0b: uma falha serial entre o keydown e o keyup deixa
-    uma tecla (talvez modificadora) presa no chip, e um Ctrl/Win preso
-    vira atalho nas letras seguintes. reconnect() solta tudo -- mas o
-    daemon reconecta RECRIANDO o controlador (drop + factory), nao
-    chamando reconnect(); por isso a soltura mora no caminho de
-    recriacao. A 1a conexao nao solta nada (nao ha tecla presa); so a
-    reconexao solta."""
+def test_reconnect_releases_stuck_keys_but_the_first_connection_does_not():
+    """LEARNINGS 0b: a serial failure between keydown and keyup leaves a key
+    (maybe a modifier) stuck in the chip, and a stuck Ctrl/Win turns the
+    following letters into shortcuts. reconnect() releases everything -- but
+    the daemon reconnects by RECREATING the controller (drop + factory), not
+    by calling reconnect(); that is why the release lives in the recreation
+    path. The 1st connection releases nothing (there is no stuck key); only
+    the reconnect releases."""
     controllers = [SerialFlakyController(failures=1), FakeController()]
     created = []
 
@@ -394,19 +395,19 @@ def test_reconexao_solta_teclas_presas_mas_a_primeira_conexao_nao():
         return created[-1]
 
     ctx = agent_daemon.DaemonContext(factory)
-    primeiro = ctx.controller()
-    assert primeiro.calls == []                        # 1a conexao: nada a soltar
+    first = ctx.controller()
+    assert first.calls == []                           # 1st connection: nothing to release
 
     ok, _ = run_steps([{"action": "click", "x": 1, "y": 1}], ctx)
     assert ok
     assert len(created) == 2
-    assert created[1].calls[0] == ("release_all_keys",)   # solta ao reconectar
-    assert created[1].calls[1][0] == "click_absolute"     # depois refaz a acao
+    assert created[1].calls[0] == ("release_all_keys",)   # releases on reconnect
+    assert created[1].calls[1][0] == "click_absolute"     # then redoes the action
 
 
 def test_controller_factory_failure_is_step_error_not_crash():
     def factory():
-        raise RuntimeError("CH340 nao encontrado")
+        raise RuntimeError("CH340 not found")
 
     ctx = agent_daemon.DaemonContext(factory)
     ok, results = run_steps([{"action": "click", "x": 1, "y": 1}], ctx)
@@ -417,7 +418,7 @@ def test_controller_factory_failure_is_step_error_not_crash():
 
 
 # ---------------------------------------------------------------------------
-# fila de arquivos / geracao de response
+# file queue / response generation
 # ---------------------------------------------------------------------------
 
 def make_queue(tmp_path):
@@ -427,9 +428,9 @@ def make_queue(tmp_path):
 
 def test_process_request_file_writes_response_and_moves_request(tmp_path):
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "001_ola.json")
+    request_path = os.path.join(requests_dir, "001_hi.json")
     with open(request_path, "w", encoding="utf-8") as f:
-        json.dump({"steps": [{"action": "type_text", "text": "ola"}]}, f)
+        json.dump({"steps": [{"action": "type_text", "text": "hi"}]}, f)
 
     ctx, fake = make_ctx()
     consumed = agent_daemon.process_request_file(
@@ -438,19 +439,19 @@ def test_process_request_file_writes_response_and_moves_request(tmp_path):
 
     assert consumed
     assert not os.path.exists(request_path)
-    assert os.path.exists(os.path.join(processed_dir, "001_ola.json"))
+    assert os.path.exists(os.path.join(processed_dir, "001_hi.json"))
 
-    with open(os.path.join(responses_dir, "001_ola.json"), encoding="utf-8") as f:
+    with open(os.path.join(responses_dir, "001_hi.json"), encoding="utf-8") as f:
         response = json.load(f)
-    assert response["request"] == "001_ola.json"
+    assert response["request"] == "001_hi.json"
     assert response["ok"] is True
     assert response["steps"] == [{"index": 0, "action": "type_text", "status": "ok"}]
-    assert fake.calls == [("type_text", "ola")]
+    assert fake.calls == [("type_text", "hi")]
 
 
 def test_process_request_file_reports_per_step_errors(tmp_path):
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "002_misto.json")
+    request_path = os.path.join(requests_dir, "002_mixed.json")
     with open(request_path, "w", encoding="utf-8") as f:
         json.dump(
             {"steps": [{"action": "type_text", "text": "€"}, {"action": "move", "x": 1, "y": 1}]}, f
@@ -461,7 +462,7 @@ def test_process_request_file_reports_per_step_errors(tmp_path):
         request_path, ctx, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir=frames_dir
     )
 
-    with open(os.path.join(responses_dir, "002_misto.json"), encoding="utf-8") as f:
+    with open(os.path.join(responses_dir, "002_mixed.json"), encoding="utf-8") as f:
         response = json.load(f)
     assert response["ok"] is False
     assert response["steps"][0]["status"] == "error"
@@ -470,9 +471,9 @@ def test_process_request_file_reports_per_step_errors(tmp_path):
 
 def test_recent_malformed_request_is_skipped_not_consumed(tmp_path):
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "003_parcial.json")
+    request_path = os.path.join(requests_dir, "003_partial.json")
     with open(request_path, "w", encoding="utf-8") as f:
-        f.write('{"steps": [')  # escrita pela metade
+        f.write('{"steps": [')  # half-written
 
     ctx, _ = make_ctx()
     consumed = agent_daemon.process_request_file(
@@ -480,15 +481,15 @@ def test_recent_malformed_request_is_skipped_not_consumed(tmp_path):
     )
 
     assert consumed is False
-    assert os.path.exists(request_path)  # fica para a proxima varredura
-    assert not os.path.exists(os.path.join(responses_dir, "003_parcial.json"))
+    assert os.path.exists(request_path)  # stays for the next scan
+    assert not os.path.exists(os.path.join(responses_dir, "003_partial.json"))
 
 
 def test_old_malformed_request_gets_error_response(tmp_path):
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "004_lixo.json")
+    request_path = os.path.join(requests_dir, "004_garbage.json")
     with open(request_path, "w", encoding="utf-8") as f:
-        f.write("{nao e json")
+        f.write("{not json")
     old = time.time() - 60
     os.utime(request_path, (old, old))
 
@@ -499,14 +500,14 @@ def test_old_malformed_request_gets_error_response(tmp_path):
 
     assert consumed
     assert not os.path.exists(request_path)
-    with open(os.path.join(responses_dir, "004_lixo.json"), encoding="utf-8") as f:
+    with open(os.path.join(responses_dir, "004_garbage.json"), encoding="utf-8") as f:
         response = json.load(f)
     assert response["ok"] is False
-    assert "request invalido" in response["error"]
+    assert "invalid request" in response["error"]
 
 
 def test_invalid_schema_gets_error_response_even_if_recent(tmp_path):
-    # JSON bem formado mas com schema errado nao ganha janela de tolerancia
+    # well-formed JSON but with a wrong schema gets no tolerance window
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
     request_path = os.path.join(requests_dir, "005_schema.json")
     with open(request_path, "w", encoding="utf-8") as f:
@@ -526,7 +527,7 @@ def test_invalid_schema_gets_error_response_even_if_recent(tmp_path):
 
 def test_pending_requests_sorted_and_filtered(tmp_path):
     requests_dir, _, _, _, _, _ = make_queue(tmp_path)
-    for name in ("002_b.json", "001_a.json", "nota.txt", "_rascunho.json", ".oculto.json"):
+    for name in ("002_b.json", "001_a.json", "note.txt", "_draft.json", ".hidden.json"):
         with open(os.path.join(requests_dir, name), "w", encoding="utf-8") as f:
             f.write("{}")
 
@@ -550,15 +551,15 @@ def test_main_loop_processes_request_and_stops_on_sentinel(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# expect + required (abort de lote)
+# expect + required (batch abort)
 # ---------------------------------------------------------------------------
 
 class FakeScreen:
-    """Stub de screen_utils para os testes de expect.
+    """Stub of screen_utils for the expect tests.
 
-    `template_results` / `ocr_results` sao filas: com mais de um item, cada
-    probe consome o proximo (permite simular "a condicao aparece na segunda
-    tentativa"); com um item so, ele e devolvido indefinidamente.
+    `template_results` / `ocr_results` are queues: with more than one item,
+    each probe consumes the next (lets you simulate "the condition appears on
+    the second attempt"); with a single item, it is returned indefinitely.
     """
 
     def __init__(self, template_results=None, ocr_results=None):
@@ -580,16 +581,16 @@ class FakeScreen:
                           {"found": False, "confidence": 0.1})
 
     def ocr_region_from_frame(self, frame, region=None, lang="por", upscale=2):
-        # `upscale` entrou em 2026-11-07: expect/verify tentam varias
-        # escalas, porque texto curto nao sai a 2x ("FCFF" -> "Gigg").
+        # `upscale` joined on 2026-11-07: expect/verify try several scales,
+        # because short text does not come out at 2x ("FCFF" -> "Gigg").
         self.ocr_calls.append((region, lang))
         self.ocr_upscales.append(upscale)
         return self._next(self.ocr_results, {"text": "", "raw": ""})
 
 
 def make_expect_ctx(monkeypatch, screen, controller=None):
-    """ctx cujo capture_array devolve um frame falso, com screen_utils
-    trocado pelo stub."""
+    """ctx whose capture_array returns a fake frame, with screen_utils swapped
+    for the stub."""
     ctx, fake = make_ctx(controller=controller)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
     monkeypatch.setattr(agent_daemon.screen_utils, "find_image_in_frame",
@@ -599,50 +600,50 @@ def make_expect_ctx(monkeypatch, screen, controller=None):
     return ctx, fake
 
 
-def test_expect_reconfere_em_vez_de_ler_uma_vez_so(monkeypatch):
-    """O padrao era UMA leitura em t=0, e isso nao funciona aqui.
+def test_expect_rechecks_instead_of_reading_only_once(monkeypatch):
+    """The default was ONE read at t=0, and that does not work here.
 
-    A capturadora serve frame velho (docs/CAPTURA_VIDEO_BUFFER.md). O
-    caso real: logo depois de digitar "PROBE ABNT2" no Bloco de Notas
-    o expect leu string vazia e abortou o lote -- o texto estava na
-    tela, e o OCR do mesmo recorte leu certo logo em seguida.
+    The capture device serves an old frame (docs/CAPTURE_VIDEO_BUFFER.md).
+    The real case: right after typing "PROBE ABNT2" in Notepad the expect read
+    an empty string and aborted the batch -- the text was on screen, and OCR
+    of the same crop read it correctly right after.
 
-    A fila do stub entrega "ainda nao" e depois "ja apareceu". Sao tres
-    vazios porque cada tentativa percorre as escalas 2, 4 e 6: a fila
-    tem que esgotar a tentativa INTEIRA antes de o texto aparecer,
-    senao o teste passaria sem haver segunda tentativa nenhuma.
+    The stub queue hands "not yet" and then "it appeared". There are three
+    empties because each attempt sweeps scales 2, 4 and 6: the queue must
+    drain the WHOLE attempt before the text appears, otherwise the test would
+    pass with no second attempt at all.
     """
     screen = FakeScreen(ocr_results=[{"text": "", "raw": ""},
                                      {"text": "", "raw": ""},
                                      {"text": "", "raw": ""},
-                                     {"text": "pronto", "raw": ""}])
+                                     {"text": "ready", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "expect", "text": "pronto", "poll": 0.01},
+        {"action": "expect", "text": "ready", "poll": 0.01},
     ], ctx)
 
     assert ok is True
     assert results[0]["attempts"] >= 2
 
 
-def test_expect_com_timeout_zero_explicito_le_uma_vez_so(monkeypatch):
-    # quem quer o comportamento antigo ainda pode pedir
+def test_expect_with_explicit_zero_timeout_reads_only_once(monkeypatch):
+    # whoever wants the old behavior can still ask for it
     screen = FakeScreen(ocr_results=[{"text": "", "raw": ""},
                                      {"text": "", "raw": ""},
                                      {"text": "", "raw": ""},
-                                     {"text": "pronto", "raw": ""}])
+                                     {"text": "ready", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "expect", "text": "pronto", "timeout": 0},
+        {"action": "expect", "text": "ready", "timeout": 0},
     ], ctx)
 
     assert ok is False
     assert results[0]["status"] == "error"
 
 
-def test_padrao_do_expect_nao_e_zero():
-    # o valor em si e uma escolha; ser maior que zero nao e
-    assert agent_daemon.EXPECT_TIMEOUT_PADRAO > 0
+def test_expect_default_is_not_zero():
+    # the value itself is a choice; being greater than zero is not
+    assert agent_daemon.EXPECT_TIMEOUT_DEFAULT > 0
 
 
 def test_expect_template_found_lets_batch_continue(monkeypatch):
@@ -650,24 +651,24 @@ def test_expect_template_found_lets_batch_continue(monkeypatch):
                                            "confidence": 0.97}])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "expect", "template": "caixa.png"},
-        {"action": "type_text", "text": "oi"},
+        {"action": "expect", "template": "box.png"},
+        {"action": "type_text", "text": "hi"},
     ], ctx)
 
     assert ok is True
     assert results[0]["status"] == "ok"
     assert results[0]["expect_ok"] is True
     assert results[1]["status"] == "ok"
-    assert ("type_text", "oi") in fake.calls
+    assert ("type_text", "hi") in fake.calls
 
 
 def test_expect_template_missing_aborts_and_does_not_type(monkeypatch):
-    """O cenario do incidente: a tela nao e a esperada, entao NADA e digitado."""
+    """The incident scenario: the screen is not the expected one, so NOTHING is typed."""
     screen = FakeScreen(template_results=[{"found": False, "confidence": 0.12}])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "expect", "template": "caixa_whatsapp.png"},
-        {"action": "type_text", "text": "mensagem secreta"},
+        {"action": "expect", "template": "whatsapp_box.png"},
+        {"action": "type_text", "text": "secret message"},
         {"action": "press_key", "key": "enter"},
     ], ctx)
 
@@ -675,10 +676,10 @@ def test_expect_template_missing_aborts_and_does_not_type(monkeypatch):
     assert results[0]["status"] == "error"
     assert "ExpectationFailed" in results[0]["error"]
     assert results[0]["aborted_batch"] is True
-    # o essencial: os passos de escrita nem rodaram
+    # the essential part: the write steps did not even run
     assert results[1]["status"] == "skipped"
     assert results[2]["status"] == "skipped"
-    assert "abortado no passo 0" in results[1]["reason"]
+    assert "aborted at step 0" in results[1]["reason"]
     assert fake.calls == []
 
 
@@ -693,7 +694,7 @@ def test_expect_absent_satisfied_when_not_found(monkeypatch):
     screen = FakeScreen(template_results=[{"found": False, "confidence": 0.1}])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
-        {"action": "expect", "template": "tela_bloqueio.png", "absent": True},
+        {"action": "expect", "template": "lock_screen.png", "absent": True},
         {"action": "type_text", "text": "ok"},
     ], ctx)
 
@@ -702,12 +703,12 @@ def test_expect_absent_satisfied_when_not_found(monkeypatch):
 
 
 def test_expect_absent_aborts_when_present(monkeypatch):
-    """Guarda direta contra o incidente: a tela de bloqueio esta na tela."""
+    """Direct guard against the incident: the lock screen is on screen."""
     screen = FakeScreen(template_results=[{"found": True, "x": 1, "y": 2,
                                            "confidence": 0.99}])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "expect", "template": "tela_bloqueio.png", "absent": True},
+        {"action": "expect", "template": "lock_screen.png", "absent": True},
         {"action": "type_text", "text": "Senha@1234!"},
     ], ctx)
 
@@ -738,32 +739,32 @@ def test_expect_required_false_records_but_does_not_abort(monkeypatch):
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
         {"action": "expect", "template": "a.png", "required": False},
-        {"action": "type_text", "text": "segue"},
+        {"action": "type_text", "text": "go on"},
     ], ctx)
 
-    assert ok is False                      # a falha fica registrada
+    assert ok is False                      # the failure is recorded
     assert "aborted_batch" not in results[0]
-    assert results[1]["status"] == "ok"     # mas o lote seguiu
-    assert ("type_text", "segue") in fake.calls
+    assert results[1]["status"] == "ok"     # but the batch went on
+    assert ("type_text", "go on") in fake.calls
 
 
 def test_expect_text_backend_matches_substring(monkeypatch):
-    screen = FakeScreen(ocr_results=[{"text": "Digite uma mensagem", "raw": ""}])
+    screen = FakeScreen(ocr_results=[{"text": "Type a message", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
-        {"action": "expect", "text": "digite uma", "region": [0, 0, 100, 50]},
+        {"action": "expect", "text": "type a", "region": [0, 0, 100, 50]},
     ], ctx)
 
     assert ok is True
-    # lang=None de proposito: quem escolhe o idioma e
-    # screen_utils.resolve_lang, pelo que esta INSTALADO. Cravar "por"
-    # aqui era o que fazia todo expect sem lang explicito morrer nesta
-    # maquina, que so tem o pacote `eng`.
+    # lang=None on purpose: the language is chosen by
+    # screen_utils.resolve_lang, from what is INSTALLED. Hardcoding "por"
+    # here was what made every expect without an explicit lang die on this
+    # machine, which only has the `eng` package.
     assert screen.ocr_calls == [([0, 0, 100, 50], None)]
 
 
 def test_expect_text_without_tesseract_gives_actionable_error(monkeypatch):
-    """pytesseract importavel mas binario ausente nao pode virar 'nao achei'."""
+    """pytesseract importable but the binary absent must not become 'not found'."""
     def boom(frame, region=None, lang="por"):
         raise RuntimeError("TesseractNotFoundError: tesseract is not installed")
 
@@ -772,23 +773,23 @@ def test_expect_text_without_tesseract_gives_actionable_error(monkeypatch):
     monkeypatch.setattr(agent_daemon.screen_utils, "ocr_region_from_frame", boom)
 
     ok, results = run_steps([
-        {"action": "expect", "text": "qualquer"},
-        {"action": "type_text", "text": "nao deve digitar"},
+        {"action": "expect", "text": "anything"},
+        {"action": "type_text", "text": "must not type"},
     ], ctx)
 
     assert ok is False
-    assert "Tesseract-OCR instalado" in results[0]["error"]
+    assert "Tesseract-OCR installed" in results[0]["error"]
     assert results[1]["status"] == "skipped"
     assert fake.calls == []
 
 
 def test_expect_does_not_require_serial_connection(monkeypatch):
-    """expect so olha a tela: nao deve abrir a serial nem falhar sem ela."""
+    """expect only looks at the screen: it must not open the serial nor fail without it."""
     screen = FakeScreen(template_results=[{"found": True, "x": 1, "y": 1,
                                            "confidence": 0.9}])
 
     def exploding_factory():
-        raise AssertionError("expect nao deveria pedir o controlador")
+        raise AssertionError("expect should not ask for the controller")
 
     ctx = agent_daemon.DaemonContext(exploding_factory)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
@@ -802,8 +803,8 @@ def test_expect_does_not_require_serial_connection(monkeypatch):
 def test_required_true_aborts_on_any_action():
     ctx, fake = make_ctx()
     ok, results = run_steps([
-        {"action": "type_text", "text": "€", "required": True},  # sem mapeamento
-        {"action": "type_text", "text": "depois"},
+        {"action": "type_text", "text": "€", "required": True},  # no mapping
+        {"action": "type_text", "text": "after"},
     ], ctx)
 
     assert ok is False
@@ -823,7 +824,7 @@ def test_step_is_required_defaults():
 
 @pytest.mark.parametrize("step, expected", [
     ({"action": "expect"}, "template"),
-    ({"action": "expect", "template": "a.png", "text": "x"}, "nao os dois"),
+    ({"action": "expect", "template": "a.png", "text": "x"}, "not both"),
     ({"action": "click", "x": 1, "y": 2, "required": "sim"}, "'required'"),
 ])
 def test_parse_request_validates_expect_and_required(step, expected):
@@ -840,20 +841,20 @@ def test_parse_request_accepts_valid_expect():
 
 
 def test_default_char_delay_is_at_serial_floor():
-    """Abaixo de ~0.029s a linha a 9600 bps satura e a taxa real piora."""
+    """Below ~0.029s the 9600 bps line saturates and the real rate gets worse."""
     assert agent_daemon.DEFAULT_CHAR_DELAY >= 0.029
 
 
 def test_response_file_records_abort_and_skipped_steps(tmp_path, monkeypatch):
-    """Contrato visivel ao operador: o response diz onde abortou e o que
-    nao rodou, para nao haver duvida sobre o que chegou na tela."""
+    """Operator-visible contract: the response says where it aborted and what
+    did not run, so there is no doubt about what reached the screen."""
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = \
         make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "001_guardado.json")
+    request_path = os.path.join(requests_dir, "001_stored.json")
     with open(request_path, "w", encoding="utf-8") as f:
         json.dump({"steps": [
-            {"action": "expect", "template": "caixa.png"},
-            {"action": "type_text", "text": "nao deve sair"},
+            {"action": "expect", "template": "box.png"},
+            {"action": "type_text", "text": "must not go out"},
         ]}, f)
 
     screen = FakeScreen(template_results=[{"found": False, "confidence": 0.3}])
@@ -863,18 +864,18 @@ def test_response_file_records_abort_and_skipped_steps(tmp_path, monkeypatch):
         failed_dir, frames_dir=frames_dir)
 
     assert consumed
-    with open(os.path.join(responses_dir, "001_guardado.json"), encoding="utf-8") as f:
+    with open(os.path.join(responses_dir, "001_stored.json"), encoding="utf-8") as f:
         response = json.load(f)
 
     assert response["ok"] is False
     assert response["steps"][0]["aborted_batch"] is True
     assert response["steps"][1]["status"] == "skipped"
-    assert response["steps"][1]["reason"] == "lote abortado no passo 0"
+    assert response["steps"][1]["reason"] == "batch aborted at step 0"
     assert fake.calls == []
 
 
 # ---------------------------------------------------------------------------
-# expect ponta a ponta: template real + cv2.matchTemplate real
+# expect end-to-end: real template + real cv2.matchTemplate
 # ---------------------------------------------------------------------------
 
 TEMPLATE_WPP = os.path.join(
@@ -883,22 +884,22 @@ TEMPLATE_WPP = os.path.join(
 
 
 def _synthetic_frame(with_template, seed=7):
-    """Frame 1920x1080 de ruido deterministico, opcionalmente com o
-    template colado numa posicao conhecida."""
+    """1920x1080 frame of deterministic noise, optionally with the template
+    pasted at a known position."""
     cv2 = pytest.importorskip("cv2")
     numpy = pytest.importorskip("numpy")
     rng = numpy.random.default_rng(seed)
     frame = rng.integers(0, 60, size=(1080, 1920, 3), dtype=numpy.uint8)
     if with_template:
         tmpl = cv2.imread(TEMPLATE_WPP)
-        assert tmpl is not None, f"template ausente: {TEMPLATE_WPP}"
+        assert tmpl is not None, f"template missing: {TEMPLATE_WPP}"
         th, tw = tmpl.shape[:2]
         frame[970:970 + th, 1858:1858 + tw] = tmpl
     return frame
 
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_WPP),
-                    reason="template versionado ausente")
+                    reason="versioned template missing")
 def test_expect_finds_real_template_in_synthetic_frame(monkeypatch):
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array",
@@ -915,16 +916,16 @@ def test_expect_finds_real_template_in_synthetic_frame(monkeypatch):
 
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_WPP),
-                    reason="template versionado ausente")
+                    reason="versioned template missing")
 def test_expect_rejects_frame_without_template(monkeypatch):
-    """Tela errada => nao digita. O caso que o incidente produziu."""
+    """Wrong screen => no typing. The case the incident produced."""
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array",
                         lambda: _synthetic_frame(False), raising=False)
 
     ok, results = run_steps([
         {"action": "expect", "template": "templates/wpp_caixa_vazia.png"},
-        {"action": "type_text", "text": "nao deve sair"},
+        {"action": "type_text", "text": "must not go out"},
     ], ctx)
 
     assert ok is False
@@ -939,10 +940,10 @@ TEMPLATE_JANELA = os.path.join(
 
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_JANELA),
-                    reason="template versionado ausente")
-def test_expect_janela_template_is_composer_independent(monkeypatch):
-    """wpp_janela existe para as fases E2+, quando a caixa JA tem texto e
-    wpp_caixa_vazia deixa de casar. Tem que casar nos dois casos."""
+                    reason="versioned template missing")
+def test_expect_window_template_is_composer_independent(monkeypatch):
+    """wpp_janela exists for phases E2+, when the box ALREADY has text and
+    wpp_caixa_vazia stops matching. It must match in both cases."""
     cv2 = pytest.importorskip("cv2")
     numpy = pytest.importorskip("numpy")
     rng = numpy.random.default_rng(11)
@@ -957,40 +958,40 @@ def test_expect_janela_template_is_composer_independent(monkeypatch):
     monkeypatch.setattr(ctx, "capture_array", lambda: frame, raising=False)
     ok, results = run_steps([
         {"action": "expect", "template": "templates/wpp_janela.png"},
-        {"action": "type_text", "text": "segundo paragrafo"},
+        {"action": "type_text", "text": "second paragraph"},
     ], ctx)
 
     assert ok is True, results
     assert results[0]["confidence"] >= 0.85
-    assert ("type_text", "segundo paragrafo") in fake.calls
+    assert ("type_text", "second paragraph") in fake.calls
 
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_JANELA),
-                    reason="template versionado ausente")
+                    reason="versioned template missing")
 def test_two_templates_compose_in_one_batch(monkeypatch):
-    """Fase D/E1: exige janela do WhatsApp E caixa vazia. Se so a janela
-    casar (caixa com texto), o lote tem que abortar antes de digitar."""
+    """Phase D/E1: requires the WhatsApp window AND an empty box. If only the
+    window matches (box with text), the batch must abort before typing."""
     cv2 = pytest.importorskip("cv2")
     numpy = pytest.importorskip("numpy")
     rng = numpy.random.default_rng(12)
-    janela = cv2.imread(TEMPLATE_JANELA)
-    th, tw = janela.shape[:2]
+    window = cv2.imread(TEMPLATE_JANELA)
+    th, tw = window.shape[:2]
 
-    # janela presente, microfone AUSENTE => caixa nao esta vazia
+    # window present, microphone ABSENT => the box is not empty
     frame = rng.integers(0, 60, size=(1080, 1920, 3), dtype=numpy.uint8)
-    frame[4:4 + th, 6:6 + tw] = janela
+    frame[4:4 + th, 6:6 + tw] = window
 
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array", lambda: frame, raising=False)
     ok, results = run_steps([
         {"action": "expect", "template": "templates/wpp_janela.png"},
         {"action": "expect", "template": "templates/wpp_caixa_vazia.png"},
-        {"action": "type_text", "text": "nao deve sair"},
+        {"action": "type_text", "text": "must not go out"},
     ], ctx)
 
     assert ok is False
-    assert results[0]["status"] == "ok"        # janela casou
-    assert results[1]["aborted_batch"] is True  # caixa nao estava vazia
+    assert results[0]["status"] == "ok"        # window matched
+    assert results[1]["aborted_batch"] is True  # box was not empty
     assert results[2]["status"] == "skipped"
     assert fake.calls == []
 
@@ -1000,7 +1001,7 @@ def test_two_templates_compose_in_one_batch(monkeypatch):
 # ---------------------------------------------------------------------------
 
 class FakeClock:
-    """Relogio monotonico controlavel, para nao dormir de verdade."""
+    """Controllable monotonic clock, so we do not actually sleep."""
 
     def __init__(self, start=1000.0):
         self.t = start
@@ -1018,10 +1019,10 @@ class NudgeController(FakeController):
 
 
 def run_loop_ticks(ctx, tmp_path, monkeypatch, ticks, **kwargs):
-    """Roda main_loop por `ticks` iteracoes de 1s e entao para.
+    """Run main_loop for `ticks` iterations of 1s and then stop.
 
-    Cada checagem do arquivo de stop conta uma iteracao e avanca o relogio
-    falso em 1s; depois de `ticks` ela responde True e o loop encerra.
+    Each check of the stop file counts one iteration and advances the fake
+    clock by 1s; after `ticks` it returns True and the loop ends.
     """
     clock = FakeClock()
     monkeypatch.setattr(agent_daemon.time, "monotonic", clock)
@@ -1057,17 +1058,17 @@ def test_nudge_mouse_moves_and_returns():
 
 
 def test_nudge_mouse_never_raises_and_drops_controller():
-    """O keep-alive jamais pode derrubar o loop."""
+    """The keep-alive must never bring down the loop."""
 
     class Broken(NudgeController):
         def move_relative(self, dx, dy, buttons=0, wheel=0):
-            raise serial.SerialException("cabo caiu")
+            raise serial.SerialException("cable dropped")
 
     broken = Broken()
     ctx, _ = make_ctx(controller=broken)
-    ctx.controller()                       # forca a criacao
+    ctx.controller()                       # forces creation
     assert agent_daemon.nudge_mouse(ctx) is False
-    assert broken.closed is True           # conexao descartada p/ reconectar
+    assert broken.closed is True           # connection dropped to reconnect
 
 
 def test_keep_alive_nudges_when_idle(tmp_path, monkeypatch):
@@ -1076,41 +1077,41 @@ def test_keep_alive_nudges_when_idle(tmp_path, monkeypatch):
                    keep_alive_seconds=5, keep_alive_max_idle=3600)
 
     nudges = nudges_of(fake)
-    assert len(nudges) >= 4, nudges       # 12s / 5s => >= 2 nudges (2 calls cada)
+    assert len(nudges) >= 4, nudges       # 12s / 5s => >= 2 nudges (2 calls each)
     assert nudges[0] == ("move_relative", 1, 0)
     assert nudges[1] == ("move_relative", -1, 0)
 
 
 def test_keep_alive_is_off_by_default(tmp_path, monkeypatch):
-    """Manter a maquina destravada e abrir mao de uma protecao: so com
-    escolha explicita.
+    """Keeping the machine unlocked gives up a protection: only with an
+    explicit choice.
 
-    Os ticks precisam passar de KEEP_ALIVE_SECONDS, senao o teste passa
-    por vacuidade: com o intervalo padrao de 120s, rodar 30 ticks nao
-    provaria nada (um default LIGADO tambem nao teria disparado ainda).
+    The ticks must exceed KEEP_ALIVE_SECONDS, otherwise the test passes
+    vacuously: with the default 120s interval, running 30 ticks would prove
+    nothing (an ON default would not have fired yet either).
     """
     ctx, fake = make_ctx(controller=NudgeController())
     ticks = agent_daemon.KEEP_ALIVE_SECONDS + 10
     run_loop_ticks(ctx, tmp_path, monkeypatch, ticks=ticks)
-    assert fake.calls == [], "keep-alive disparou sem ser pedido"
+    assert fake.calls == [], "keep-alive fired without being asked"
 
 
 def test_keep_alive_expires_after_max_idle(tmp_path, monkeypatch):
-    """Passado o limite sem requests, para sozinho e a tela volta a travar."""
+    """Past the limit with no requests, it stops on its own and the screen re-locks."""
     ctx, fake = make_ctx(controller=NudgeController())
     run_loop_ticks(ctx, tmp_path, monkeypatch, ticks=40,
                    keep_alive_seconds=2, keep_alive_max_idle=10)
 
     nudges = nudges_of(fake)
-    # Sem expiracao seriam ~20 nudges (40 chamadas) em 40 ticks. Com
-    # expiracao em 10s, ~5 nudges (10 chamadas).
-    assert len(nudges) <= 14, "keep-alive nao expirou: %d chamadas" % len(nudges)
-    assert len(nudges) >= 4, "keep-alive nem chegou a rodar"
+    # Without expiry it would be ~20 nudges (40 calls) in 40 ticks. With
+    # expiry at 10s, ~5 nudges (10 calls).
+    assert len(nudges) <= 14, "keep-alive did not expire: %d calls" % len(nudges)
+    assert len(nudges) >= 4, "keep-alive did not even run"
 
 
 def test_keep_alive_does_not_fire_between_steps_of_a_request(tmp_path, monkeypatch):
-    """O keep-alive vive no loop, nao na execucao de passos: nunca pode
-    mexer o mouse no meio de uma digitacao."""
+    """The keep-alive lives in the loop, not in step execution: it can never
+    move the mouse in the middle of typing."""
     ctx, fake = make_ctx(controller=NudgeController())
     queue_dir = str(tmp_path / "queue")
     requests_dir, _, _, _, _, _ = agent_daemon.ensure_queue_dirs(queue_dir)
@@ -1123,14 +1124,14 @@ def test_keep_alive_does_not_fire_between_steps_of_a_request(tmp_path, monkeypat
     run_loop_ticks(ctx, tmp_path, monkeypatch, ticks=20,
                    keep_alive_seconds=1, keep_alive_max_idle=3600)
 
-    # nenhuma chamada de mouse entre os dois type_text
+    # no mouse call between the two type_text
     kinds = [c[0] for c in fake.calls]
     first, last = kinds.index("type_text"), len(kinds) - 1 - kinds[::-1].index("type_text")
     assert "move_relative" not in kinds[first:last], fake.calls
 
 
 # ---------------------------------------------------------------------------
-# verify: pos-condicao acoplada a acao
+# verify: post-condition coupled to the action
 # ---------------------------------------------------------------------------
 
 MIC_PRESENT = {"found": True, "confidence": 1.0, "x": 1858, "y": 970}
@@ -1141,9 +1142,9 @@ def test_verify_satisfied_lets_batch_continue(monkeypatch):
     screen = FakeScreen(template_results=[MIC_ABSENT])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        # digitou: o microfone deve ter virado seta de envio (ficar ausente)
-        {"action": "type_text", "text": "oi",
-         "verify": {"template": "caixa.png", "absent": True}},
+        # typed: the microphone should have become the send arrow (be absent)
+        {"action": "type_text", "text": "hi",
+         "verify": {"template": "box.png", "absent": True}},
         {"action": "press_key", "key": "enter"},
     ], ctx)
 
@@ -1154,12 +1155,12 @@ def test_verify_satisfied_lets_batch_continue(monkeypatch):
 
 
 def test_verify_failure_aborts_batch(monkeypatch):
-    # microfone continua presente => a caixa continua vazia => nao digitou
+    # microphone still present => the box is still empty => nothing was typed
     screen = FakeScreen(template_results=[MIC_PRESENT])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "type_text", "text": "oi",
-         "verify": {"template": "caixa.png", "absent": True}},
+        {"action": "type_text", "text": "hi",
+         "verify": {"template": "box.png", "absent": True}},
         {"action": "press_key", "key": "enter"},
     ], ctx)
 
@@ -1168,21 +1169,21 @@ def test_verify_failure_aborts_batch(monkeypatch):
     assert results[0]["verify_failed"] is True
     assert results[0]["aborted_batch"] is True
     assert results[1]["status"] == "skipped"
-    # o Enter NAO pode ter sido mandado
-    assert fake.calls == [("type_text", "oi")]
+    # the Enter must NOT have been sent
+    assert fake.calls == [("type_text", "hi")]
 
 
 def test_verify_catches_enter_that_did_not_send(monkeypatch):
-    """Regressao do bug real da fase F (2026-11-06).
+    """Regression for the real phase-F bug (2026-11-06).
 
-    Um request de envio retornou ok=True e nao enviou nada: o `Enter` caiu
-    fora do campo de composicao e o texto ficou na caixa. Nenhuma
-    pre-condicao pega isso -- antes do Enter a tela estava correta. A
-    pos-condicao pega: enviado de verdade, a caixa volta a ficar vazia e o
-    microfone reaparece (medido: 1.0000 em F2_enviada contra 0.6983 em
-    389_digitada, limiar 0.85).
+    A send request returned ok=True and sent nothing: the `Enter` landed
+    outside the compose field and the text stayed in the box. No pre-condition
+    catches this -- before the Enter the screen was correct. The post-condition
+    catches it: on a real send the box empties again and the microphone
+    reappears (measured: 1.0000 in F2_enviada against 0.6983 in 389_digitada,
+    threshold 0.85).
     """
-    screen = FakeScreen(template_results=[MIC_ABSENT])  # texto ainda na caixa
+    screen = FakeScreen(template_results=[MIC_ABSENT])  # text still in the box
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
         {"action": "press_key", "key": "enter",
@@ -1199,8 +1200,8 @@ def test_verify_required_false_does_not_abort(monkeypatch):
     screen = FakeScreen(template_results=[MIC_PRESENT])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        {"action": "type_text", "text": "oi",
-         "verify": {"template": "caixa.png", "absent": True, "required": False}},
+        {"action": "type_text", "text": "hi",
+         "verify": {"template": "box.png", "absent": True, "required": False}},
         {"action": "press_key", "key": "enter"},
     ], ctx)
 
@@ -1211,7 +1212,7 @@ def test_verify_required_false_does_not_abort(monkeypatch):
 
 
 def test_verify_runs_after_the_action(monkeypatch):
-    """A pos-condicao tem de olhar a tela DEPOIS da tecla sair."""
+    """The post-condition must look at the screen AFTER the key goes out."""
     screen = FakeScreen(template_results=[MIC_PRESENT])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     seen = []
@@ -1222,20 +1223,20 @@ def test_verify_runs_after_the_action(monkeypatch):
         return original(frame, path, confidence)
 
     monkeypatch.setattr(agent_daemon.screen_utils, "find_image_in_frame", probe)
-    run_steps([{"action": "type_text", "text": "oi",
-                "verify": {"template": "caixa.png"}}], ctx)
+    run_steps([{"action": "type_text", "text": "hi",
+                "verify": {"template": "box.png"}}], ctx)
 
-    assert seen, "o verify nao rodou"
-    assert ("type_text", "oi") in seen[0]
+    assert seen, "the verify did not run"
+    assert ("type_text", "hi") in seen[0]
 
 
 def test_verify_skipped_when_the_action_itself_failed(monkeypatch):
     screen = FakeScreen(template_results=[MIC_PRESENT])
     ctx, fake = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
-        # caractere sem mapeamento HID: o proprio type_text levanta
+        # character with no HID mapping: type_text itself raises
         {"action": "type_text", "text": "—",
-         "verify": {"template": "caixa.png"}},
+         "verify": {"template": "box.png"}},
     ], ctx)
 
     assert ok is False
@@ -1250,7 +1251,7 @@ def test_verify_absent_false_wants_the_template_present(monkeypatch):
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
         {"action": "press_key", "key": "enter",
-         "verify": {"template": "caixa.png"}},
+         "verify": {"template": "box.png"}},
     ], ctx)
 
     assert ok is True
@@ -1258,11 +1259,11 @@ def test_verify_absent_false_wants_the_template_present(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# validacao do verify / frame no parse_request
+# verify / frame validation in parse_request
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("step", [
-    {"action": "click", "x": 1, "y": 2, "verify": "caixa.png"},
+    {"action": "click", "x": 1, "y": 2, "verify": "box.png"},
     {"action": "click", "x": 1, "y": 2, "verify": []},
     {"action": "click", "x": 1, "y": 2, "verify": {}},
     {"action": "click", "x": 1, "y": 2, "verify": {"template": "a", "text": "b"}},
@@ -1284,13 +1285,13 @@ def test_parse_request_accepts_verify_block():
 
 
 def test_parse_request_accepts_verify_by_text():
-    steps = [{"action": "type_text", "text": "oi",
-              "verify": {"text": "Digite uma mensagem"}}]
+    steps = [{"action": "type_text", "text": "hi",
+              "verify": {"text": "Type a message"}}]
     assert agent_daemon.parse_request({"steps": steps}) == steps
 
 
 # ---------------------------------------------------------------------------
-# captura automatica por passo
+# automatic per-step capture
 # ---------------------------------------------------------------------------
 
 def capture_recorder():
@@ -1315,12 +1316,12 @@ def test_capture_each_step_saves_a_frame_after_write_actions():
     ok, results = run_steps_with_frames([
         {"action": "click", "x": 1, "y": 2},
         {"action": "sleep", "seconds": 0},
-        {"action": "type_text", "text": "oi"},
+        {"action": "type_text", "text": "hi"},
     ], ctx)
 
     assert ok is True
     assert results[0]["frame_path"] == os.path.join(TEST_FRAMES_DIR, "req_step0.png")
-    assert "frame_path" not in results[1], "sleep nao mudou a tela"
+    assert "frame_path" not in results[1], "sleep did not change the screen"
     assert results[2]["frame_path"] == os.path.join(TEST_FRAMES_DIR, "req_step2.png")
     assert len(saved) == 2
 
@@ -1355,20 +1356,20 @@ def test_step_frame_flag_works_without_the_batch_default():
 
 
 def test_capture_failure_does_not_fail_a_good_action():
-    """Captura e evidencia, nao resultado."""
+    """Capture is evidence, not a result."""
     def capture_fn(path, cap=None):
-        raise OSError("capturadora ocupada")
+        raise OSError("capture device busy")
 
     ctx, fake = make_ctx(capture_fn=capture_fn)
     ok, results = run_steps_with_frames([{"action": "click", "x": 1, "y": 2}], ctx)
 
     assert ok is True
     assert results[0]["status"] == "ok"
-    assert "capturadora ocupada" in results[0]["frame_error"]
+    assert "capture device busy" in results[0]["frame_error"]
 
 
 def test_frame_is_saved_before_the_verify_runs(monkeypatch):
-    """Se o verify reprovar, o PNG que eu vou olhar e o do estado reprovado."""
+    """If the verify fails, the PNG I will look at is the failed state's."""
     order = []
 
     def capture_fn(path, cap=None):
@@ -1385,14 +1386,14 @@ def test_frame_is_saved_before_the_verify_runs(monkeypatch):
 
     monkeypatch.setattr(agent_daemon.screen_utils, "find_image_in_frame", probe)
     ok, results = run_steps_with_frames([
-        {"action": "type_text", "text": "oi",
-         "verify": {"template": "caixa.png", "absent": True}},
+        {"action": "type_text", "text": "hi",
+         "verify": {"template": "box.png", "absent": True}},
     ], ctx)
 
     assert ok is False
-    # O que este teste prende e a ORDEM: a captura vem antes de
-    # qualquer leitura. Quantas leituras vem depois e assunto do
-    # EXPECT_TIMEOUT_PADRAO, que reconfere ate 5 vezes.
+    # What this test pins is the ORDER: the capture comes before any read.
+    # How many reads come after is a matter for EXPECT_TIMEOUT_DEFAULT, which
+    # rechecks up to 5 times.
     assert order[0] == "capture"
     assert order.count("capture") == 1
     assert set(order[1:]) == {"verify"}
@@ -1410,14 +1411,14 @@ def test_request_capture_each_step_override(data, default, expected):
 
 
 # ---------------------------------------------------------------------------
-# verify ponta a ponta: template real + cv2 real, nos dois sentidos
+# verify end-to-end: real template + real cv2, both ways
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_WPP),
-                    reason="template versionado ausente")
+                    reason="versioned template missing")
 def test_verify_accepts_send_that_emptied_the_box(monkeypatch):
-    """Enviou de verdade: a caixa volta a ficar vazia e o microfone
-    reaparece. Medido no corpus real: F2_enviada = 1.0000."""
+    """A real send: the box empties again and the microphone reappears.
+    Measured on the real corpus: F2_enviada = 1.0000."""
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array",
                         lambda: _synthetic_frame(True), raising=False)
@@ -1434,14 +1435,14 @@ def test_verify_accepts_send_that_emptied_the_box(monkeypatch):
 
 
 @pytest.mark.skipif(not os.path.exists(TEMPLATE_WPP),
-                    reason="template versionado ausente")
+                    reason="versioned template missing")
 def test_verify_rejects_send_that_left_the_text_in_the_box(monkeypatch):
-    """O bug real da fase F, ponta a ponta.
+    """The real phase-F bug, end to end.
 
-    `ok=True` do daemon nao prova que a tecla surtiu efeito. Com o texto
-    ainda na caixa o WhatsApp mostra a seta de envio, nao o microfone, e a
-    pos-condicao reprova (medido: 389_digitada = 0.6983 contra limiar
-    0.85). Antes do `verify` isso passava como sucesso."""
+    The daemon's `ok=True` does not prove the key had an effect. With the text
+    still in the box WhatsApp shows the send arrow, not the microphone, and
+    the post-condition fails (measured: 389_digitada = 0.6983 against the 0.85
+    threshold). Before `verify` this passed as a success."""
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array",
                         lambda: _synthetic_frame(False), raising=False)
@@ -1450,7 +1451,7 @@ def test_verify_rejects_send_that_left_the_text_in_the_box(monkeypatch):
         {"action": "press_key", "key": "enter",
          "verify": {"template": "templates/wpp_caixa_vazia.png",
                     "confidence": 0.85}},
-        {"action": "type_text", "text": "nao deve rodar"},
+        {"action": "type_text", "text": "must not run"},
     ], ctx)
 
     assert ok is False
@@ -1461,11 +1462,11 @@ def test_verify_rejects_send_that_left_the_text_in_the_box(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# poda de frames
+# frame pruning
 # ---------------------------------------------------------------------------
 
 def _make_frames(tmp_path, n, prefix="f"):
-    """n PNGs com mtime crescente: o indice maior e o mais novo."""
+    """n PNGs with increasing mtime: the higher index is the newest."""
     paths = []
     for i in range(n):
         p = tmp_path / f"{prefix}{i:03d}.png"
@@ -1498,23 +1499,23 @@ def test_prune_frames_noop_when_under_the_limit(tmp_path):
 
 def test_prune_frames_ignores_non_png(tmp_path):
     _make_frames(tmp_path, 5)
-    (tmp_path / "anotacoes.txt").write_text("nao e frame")
+    (tmp_path / "notes.txt").write_text("not a frame")
     agent_daemon.prune_frames(str(tmp_path), keep=1)
 
     left = sorted(p.name for p in tmp_path.iterdir())
-    assert left == ["anotacoes.txt", "f004.png"]
+    assert left == ["f004.png", "notes.txt"]
 
 
 def test_prune_frames_survives_missing_dir():
-    assert agent_daemon.prune_frames("nao/existe", keep=5) == []
+    assert agent_daemon.prune_frames("does/not/exist", keep=5) == []
 
 
 # ---------------------------------------------------------------------------
-# poda por tamanho
+# pruning by size
 # ---------------------------------------------------------------------------
 
 def _make_sized_frames(tmp_path, sizes, prefix="f"):
-    """PNGs com tamanho dado, mtime crescente (indice maior = mais novo)."""
+    """PNGs of a given size, increasing mtime (higher index = newer)."""
     paths = []
     for i, size in enumerate(sizes):
         p = tmp_path / f"{prefix}{i:03d}.png"
@@ -1554,9 +1555,9 @@ def test_prune_by_size_noop_when_under_budget(tmp_path):
 
 
 def test_prune_keeps_the_newest_even_if_it_busts_the_budget(tmp_path):
-    """Teto apertado demais nao pode esvaziar o diretorio: o frame mais
-    recente e o mais util, e perde-lo deixaria nada para olhar."""
-    _make_sized_frames(tmp_path, [500, 9000])   # f001 sozinho estoura
+    """A too-tight cap must not empty the directory: the newest frame is the
+    most useful, and losing it would leave nothing to look at."""
+    _make_sized_frames(tmp_path, [500, 9000])   # f001 alone busts it
     removed = agent_daemon.prune_frames(str(tmp_path), max_bytes=1000)
 
     left = sorted(p.name for p in tmp_path.iterdir())
@@ -1566,54 +1567,55 @@ def test_prune_keeps_the_newest_even_if_it_busts_the_budget(tmp_path):
 
 def test_prune_applies_the_tighter_of_the_two_limits(tmp_path):
     _make_sized_frames(tmp_path, [1000] * 10)
-    # tamanho deixaria 5; contagem deixa 2 => vale a contagem
+    # size would leave 5; count leaves 2 => count wins
     agent_daemon.prune_frames(str(tmp_path), keep=2, max_bytes=5000)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["f008.png", "f009.png"]
 
 
 def test_prune_applies_the_tighter_limit_when_it_is_the_size(tmp_path):
     _make_sized_frames(tmp_path, [1000] * 10)
-    # contagem deixaria 8; tamanho deixa 3 => vale o tamanho
+    # count would leave 8; size leaves 3 => size wins
     agent_daemon.prune_frames(str(tmp_path), keep=8, max_bytes=3000)
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "f007.png", "f008.png", "f009.png"]
 
 
 def test_prune_never_touches_the_keep_subdir(tmp_path):
-    """queue/frames/keep/ guarda a evidencia citada e o corpus de
-    validacao de template: a poda por tamanho nao pode levar isso."""
+    """queue/frames/keep/ holds the cited evidence and the template
+    validation corpus: pruning by size must not take that."""
     _make_sized_frames(tmp_path, [1000] * 5)
-    protegido = tmp_path / agent_daemon.KEEP_SUBDIR
-    protegido.mkdir()
-    _make_sized_frames(protegido, [9000] * 4, prefix="evidencia")
+    protected = tmp_path / agent_daemon.KEEP_SUBDIR
+    protected.mkdir()
+    _make_sized_frames(protected, [9000] * 4, prefix="evidence")
 
     removed = agent_daemon.prune_frames(str(tmp_path), max_bytes=1000)
 
-    assert len(list(protegido.iterdir())) == 4
+    assert len(list(protected.iterdir())) == 4
     assert all(agent_daemon.KEEP_SUBDIR not in p for p in removed)
-    # e o conteudo de keep/ nao conta para o teto do diretorio de cima
+    # and the contents of keep/ do not count toward the parent directory cap
     assert (tmp_path / "f004.png").exists()
 
 
 def test_prune_ignores_directories_named_like_png(tmp_path, caplog):
-    """Um diretorio chamado *.png nunca deve virar candidato.
+    """A directory named *.png must never become a candidate.
 
-    Sem o filtro de isfile o resultado seria o mesmo -- os.remove falha num
-    diretorio e o erro e engolido --, mas o log ganharia um "nao consegui
-    podar" que manda o operador investigar um problema que nao existe.
+    Without the isfile filter the result would be the same -- os.remove fails
+    on a directory and the error is swallowed --, but the log would gain a
+    "could not prune" that sends the operator to investigate a problem that
+    does not exist.
     """
     _make_sized_frames(tmp_path, [1000] * 3)
-    pasta = tmp_path / "pasta.png"
-    pasta.mkdir()
-    # Mais ANTIGA que os frames: recem-criada ela seria a "mais recente" e
-    # escaparia pela protecao do ultimo frame, deixando o teste vacuoso.
-    os.utime(pasta, (1_600_000_000, 1_600_000_000))
+    folder = tmp_path / "folder.png"
+    folder.mkdir()
+    # OLDER than the frames: freshly created it would be the "newest" and
+    # would escape via the last-frame protection, leaving the test vacuous.
+    os.utime(folder, (1_600_000_000, 1_600_000_000))
 
     with caplog.at_level("WARNING", logger=agent_daemon.logger.name):
         agent_daemon.prune_frames(str(tmp_path), max_bytes=1000)
 
-    assert (tmp_path / "pasta.png").is_dir()
-    assert "nao consegui podar" not in caplog.text
+    assert (tmp_path / "folder.png").is_dir()
+    assert "could not prune" not in caplog.text
 
 
 def test_default_frames_budget_is_100_mb():
@@ -1621,64 +1623,64 @@ def test_default_frames_budget_is_100_mb():
 
 
 # ---------------------------------------------------------------------------
-# goto: verificacao de aterrissagem pela Caixa de Nome
+# goto: landing verification via the Name Box
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("ref,esperado", [
+@pytest.mark.parametrize("ref,expected", [
     ("A1", "A1"),
     ("b37", "B37"),
     ("$B$37", "B37"),
-    ("A1:C10", "A1"),          # intervalo: a celula ativa e a primeira
+    ("A1:C10", "A1"),          # range: the active cell is the first
     ("ZZ1000", "ZZ1000"),
     ("  C5  ", "C5"),
-    ("meu_nome", None),        # nome definido: nao da para prever
+    ("my_name", None),         # defined name: cannot be predicted
     ("", None),
-    ("A0", None),              # linha 0 nao existe
+    ("A0", None),              # row 0 does not exist
 ])
-def test_expected_landing_cell(ref, esperado):
-    assert agent_daemon.expected_landing_cell(ref) == esperado
+def test_expected_landing_cell(ref, expected):
+    assert agent_daemon.expected_landing_cell(ref) == expected
 
 
-def make_namebox_ctx(monkeypatch, leituras, controller=None):
-    """ctx cujo read_name_box devolve a fila `leituras` (o ultimo repete)."""
+def make_namebox_ctx(monkeypatch, readings, controller=None):
+    """ctx whose read_name_box returns the `readings` queue (the last repeats)."""
     ctx, fake = make_ctx(controller=controller)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
-    fila = list(leituras)
+    pending = list(readings)
 
     def read_name_box(frame, region=None, lang="eng"):
-        return fila.pop(0) if len(fila) > 1 else fila[0]
+        return pending.pop(0) if len(pending) > 1 else pending[0]
 
     monkeypatch.setattr(agent_daemon.screen_utils, "read_name_box",
                         read_name_box)
     return ctx, fake
 
 
-def test_goto_ok_quando_aterrissa_na_celula_pedida(monkeypatch):
+def test_goto_ok_when_it_lands_on_the_requested_cell(monkeypatch):
     ctx, fake = make_namebox_ctx(monkeypatch, ["A34"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34"},
-        {"action": "type_text", "text": "AVALIACAO"},
+        {"action": "type_text", "text": "VALUATION"},
     ], ctx)
 
     assert ok is True, results
     assert results[0]["landed"] == "A34"
     assert results[0]["checked"] is True
-    assert ("type_text", "AVALIACAO") in fake.calls
+    assert ("type_text", "VALUATION") in fake.calls
 
 
-def test_goto_errado_aborta_o_lote_antes_de_digitar(monkeypatch):
-    """Regressao do incidente de 2026-11-06.
+def test_goto_wrong_aborts_the_batch_before_typing(monkeypatch):
+    """Regression for the 2026-11-06 incident.
 
-    O goto para A34 nao aterrissou; a linha seguinte foi digitada a partir
-    da linha 32 e a formula =SOMA(B32:F32) caiu na propria linha 32,
-    criando uma referencia circular. O dialogo do Excel passou a engolir
-    as teclas e o resto do bloco saiu deslocado. Nada disso aconteceria se
-    o goto tivesse conferido onde parou.
+    The goto to A34 did not land; the next line was typed from row 32 and the
+    formula =SOMA(B32:F32) landed on row 32 itself, creating a circular
+    reference. Excel's dialog then ate the keys and the rest of the block came
+    out shifted. None of it would happen if the goto had checked where it
+    stopped.
     """
     ctx, fake = make_namebox_ctx(monkeypatch, ["A32"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34", "verify_timeout": 0},
-        {"action": "type_text", "text": "VP do periodo\t=SOMA(B32:F32)"},
+        {"action": "type_text", "text": "period PV\t=SOMA(B32:F32)"},
     ], ctx)
 
     assert ok is False
@@ -1686,14 +1688,14 @@ def test_goto_errado_aborta_o_lote_antes_de_digitar(monkeypatch):
     assert results[0]["aborted_batch"] is True
     assert "A32" in results[0]["error"] and "A34" in results[0]["error"]
     assert results[1]["status"] == "skipped"
-    # O proprio goto digita a referencia na caixa "Ir para", entao ha um
-    # type_text legitimo em fake.calls. O que nao pode existir e a FORMULA.
+    # The goto itself types the reference into the "Go To" box, so there is a
+    # legitimate type_text in fake.calls. What must not exist is the FORMULA.
     assert ("type_text", "A34") in fake.calls
     assert not any(c[0] == "type_text" and "SOMA" in c[1] for c in fake.calls)
 
 
-def test_goto_espera_a_caixa_de_nome_atualizar(monkeypatch):
-    """A Caixa de Nome demora a refletir; conferir uma vez so reprovaria."""
+def test_goto_waits_for_the_name_box_to_update(monkeypatch):
+    """The Name Box takes a while to reflect; checking only once would fail."""
     ctx, fake = make_namebox_ctx(monkeypatch, [None, "A1", "A34"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34", "verify_timeout": 5},
@@ -1703,15 +1705,15 @@ def test_goto_espera_a_caixa_de_nome_atualizar(monkeypatch):
     assert results[0]["attempts"] == 3
 
 
-def test_goto_sem_ocr_segue_sem_conferir(monkeypatch):
-    """Maquina sem Tesseract nao pode virar um lote abortado."""
+def test_goto_without_ocr_goes_on_without_checking(monkeypatch):
+    """A machine without Tesseract must not become an aborted batch."""
     ctx, fake = make_ctx()
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
 
-    def sem_ocr(frame, region=None, lang="eng"):
-        raise RuntimeError("leitura da Caixa de Nome exige o Tesseract-OCR")
+    def no_ocr(frame, region=None, lang="eng"):
+        raise RuntimeError("reading the Name Box requires Tesseract-OCR")
 
-    monkeypatch.setattr(agent_daemon.screen_utils, "read_name_box", sem_ocr)
+    monkeypatch.setattr(agent_daemon.screen_utils, "read_name_box", no_ocr)
     ok, results = run_steps([
         {"action": "goto", "ref": "A34"},
         {"action": "type_text", "text": "ok"},
@@ -1722,7 +1724,7 @@ def test_goto_sem_ocr_segue_sem_conferir(monkeypatch):
     assert ("type_text", "ok") in fake.calls
 
 
-def test_goto_verify_position_false_nao_confere(monkeypatch):
+def test_goto_verify_position_false_does_not_check(monkeypatch):
     ctx, fake = make_namebox_ctx(monkeypatch, ["ZZZ999"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34", "verify_position": False},
@@ -1732,141 +1734,140 @@ def test_goto_verify_position_false_nao_confere(monkeypatch):
     assert "landed" not in results[0]
 
 
-def test_goto_com_ref_nao_coordenada_nao_confere(monkeypatch):
+def test_goto_with_non_coordinate_ref_does_not_check(monkeypatch):
     ctx, fake = make_namebox_ctx(monkeypatch, ["B2"])
-    ok, results = run_steps([{"action": "goto", "ref": "intervalo_nomeado"}], ctx)
+    ok, results = run_steps([{"action": "goto", "ref": "named_range"}], ctx)
 
     assert ok is True
     assert results[0]["checked"] is False
 
 
-def test_goto_esta_entre_as_acoes_que_abortam():
-    """Um goto que falha nao e um passo a menos: e o resto do lote no
-    lugar errado."""
+def test_goto_is_among_the_actions_that_abort():
+    """A failed goto is not one step less: it is the rest of the batch in the
+    wrong place."""
     assert "goto" in agent_daemon.ABORT_BY_DEFAULT
     assert agent_daemon.step_is_required({"action": "goto", "ref": "A1"}) is True
 
 
 # ---------------------------------------------------------------------------
-# leitura da Caixa de Nome (screen_utils.parse_cell_ref)
+# Name Box reading (screen_utils.parse_cell_ref)
 # ---------------------------------------------------------------------------
 
 import screen_utils
 
 
 # ---------------------------------------------------------------------------
-# idioma do OCR
+# OCR language
 # ---------------------------------------------------------------------------
 
-def test_resolve_lang_escolhe_um_idioma_instalado(monkeypatch):
-    """O padrao era "por" cravado, e esta maquina so tem "eng": todo
-    expect sem lang explicito morria com um erro sobre TESSDATA_PREFIX,
-    que manda procurar a variavel de ambiente errada."""
+def test_resolve_lang_picks_an_installed_language(monkeypatch):
+    """The default was "por" hardcoded, and this machine only has "eng":
+    every expect without an explicit lang died with an error about
+    TESSDATA_PREFIX, which sends you to look at the wrong environment variable."""
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("eng", "osd"))
+                        lambda reload=False: ("eng", "osd"))
     assert screen_utils.resolve_lang(None) == "eng"
 
 
-def test_resolve_lang_prefere_portugues_quando_existe(monkeypatch):
+def test_resolve_lang_prefers_portuguese_when_present(monkeypatch):
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("eng", "osd", "por"))
+                        lambda reload=False: ("eng", "osd", "por"))
     assert screen_utils.resolve_lang(None) == "por"
 
 
-def test_resolve_lang_explica_o_que_falta(monkeypatch):
-    """A mensagem tem que NOMEAR o que existe. A do Tesseract fala de
-    TESSDATA_PREFIX, e o problema costuma ser so o pacote faltando."""
+def test_resolve_lang_explains_what_is_missing(monkeypatch):
+    """The message must NAME what exists. Tesseract's talks about
+    TESSDATA_PREFIX, and the problem is usually just the missing package."""
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("eng",))
+                        lambda reload=False: ("eng",))
     with pytest.raises(RuntimeError) as exc:
         screen_utils.resolve_lang("por")
     assert "por" in str(exc.value)
     assert "eng" in str(exc.value)
 
 
-def test_resolve_lang_respeita_pedido_instalado(monkeypatch):
+def test_resolve_lang_respects_an_installed_request(monkeypatch):
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("eng", "por"))
+                        lambda reload=False: ("eng", "por"))
     assert screen_utils.resolve_lang("por+eng") == "por+eng"
 
 
-def test_resolve_lang_segue_a_preferencia_e_nao_a_ordem_alfabetica(
+def test_resolve_lang_follows_the_preference_not_the_alphabetical_order(
         monkeypatch):
-    """Sem este teste a lista de preferencia nao esta sendo provada.
+    """Without this test the preference list is not being proven.
 
-    Pego num teste de mutacao: encurtar LANG_PREFERENCIA para ("por",)
-    nao quebrava nada, porque o fallback devolvia "eng" por acaso --
-    "eng" e o primeiro em ordem alfabetica entre os instalados aqui.
-    Com "deu" na lista o acaso aponta para o lado errado."""
+    Caught by a mutation test: shortening LANG_PREFERENCE to ("por",) broke
+    nothing, because the fallback returned "eng" by chance -- "eng" is the
+    first in alphabetical order among the installed ones here. With "deu" in
+    the list, chance points the wrong way."""
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("deu", "eng", "osd"))
+                        lambda reload=False: ("deu", "eng", "osd"))
     assert screen_utils.resolve_lang(None) == "eng"
 
 
-def test_resolve_lang_nao_devolve_osd(monkeypatch):
-    """`osd` so detecta orientacao e script -- OCR nele nao le texto.
-    Ele vem em toda instalacao e e alfabeticamente anterior a `por`."""
+def test_resolve_lang_does_not_return_osd(monkeypatch):
+    """`osd` only detects orientation and script -- OCR on it reads no text.
+    It comes in every install and is alphabetically before `por`."""
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ("deu", "osd"))
+                        lambda reload=False: ("deu", "osd"))
     assert screen_utils.resolve_lang(None) == "deu"
 
 
-def test_resolve_lang_nao_trava_sem_tesseract(monkeypatch):
-    # sem Tesseract nao da para listar idiomas; o erro certo vem
-    # depois, de quem tenta usar, e nao daqui
+def test_resolve_lang_does_not_hang_without_tesseract(monkeypatch):
+    # without Tesseract the languages cannot be listed; the right error comes
+    # later, from whoever tries to use it, and not from here
     monkeypatch.setattr(screen_utils, "available_languages",
-                        lambda recarregar=False: ())
-    assert screen_utils.resolve_lang(None) == screen_utils.LANG_PREFERENCIA[0]
+                        lambda reload=False: ())
+    assert screen_utils.resolve_lang(None) == screen_utils.LANG_PREFERENCE[0]
     assert screen_utils.resolve_lang("por") == "por"
 
 
-@pytest.mark.parametrize("lido,esperado", [
+@pytest.mark.parametrize("read_text,expected", [
     ("A1", "A1"),
     ("B37", "B37"),
     ("K9", "K9"),
     ("  b37 ", "B37"),
     ("$B$37", "B37"),
     ("ZZ1000", "ZZ1000"),
-    # confusoes classicas na parte de DIGITOS, desambiguadas pela posicao
+    # classic confusions in the DIGIT part, disambiguated by position
     ("B3I", "B31"),
     ("B1O", "B10"),
     ("A1S", "A15"),
     ("C2B", "C28"),
 ])
-def test_parse_cell_ref_corrige_confusao_de_ocr(lido, esperado):
-    assert screen_utils.parse_cell_ref(lido) == esperado
+def test_parse_cell_ref_fixes_ocr_confusion(read_text, expected):
+    assert screen_utils.parse_cell_ref(read_text) == expected
 
 
-@pytest.mark.parametrize("lido", [
-    "", None, "ABC",      # sem digito nenhum: nao da para inferir a linha
-    "AI",                 # poderia ser coluna AI ou "A1" -- ambiguo
-    "BS",                 # idem: coluna BS ou "B5"
-    "K0", "A0",           # linha 0 nao existe
-    "1A",                 # digito antes da letra nao e referencia
+@pytest.mark.parametrize("read_text", [
+    "", None, "ABC",      # no digit at all: the row cannot be inferred
+    "AI",                 # could be column AI or "A1" -- ambiguous
+    "BS",                 # same: column BS or "B5"
+    "K0", "A0",           # row 0 does not exist
+    "1A",                 # a digit before the letter is not a reference
     "123",
 ])
-def test_parse_cell_ref_falha_fechado_quando_ambiguo(lido):
-    """Preferir None a chutar.
+def test_parse_cell_ref_fails_closed_when_ambiguous(read_text):
+    """Prefer None to guessing.
 
-    Um palpite errado aqui faz o `goto` acreditar que aterrissou na
-    celula certa e liberar a digitacao no lugar errado -- exatamente o
-    acidente que esta verificacao existe para impedir. Sem um digito que
-    ancore a divisao entre coluna e linha, 'BS' tanto pode ser a coluna
-    BS quanto 'B5': devolver None e a resposta honesta.
+    A wrong guess here makes `goto` believe it landed on the right cell and
+    enables typing in the wrong place -- exactly the accident this check
+    exists to prevent. Without a digit to anchor the split between column and
+    row, 'BS' could be column BS or 'B5': returning None is the honest answer.
     """
-    assert screen_utils.parse_cell_ref(lido) is None
+    assert screen_utils.parse_cell_ref(read_text) is None
 
 
-def test_read_name_box_le_texto_sintetico():
-    """Caminho completo com cv2+Tesseract reais, sem depender do rig."""
+def test_read_name_box_reads_synthetic_text():
+    """Full path with real cv2+Tesseract, without depending on the rig."""
     cv2 = pytesseract_img = pytest.importorskip("cv2")
     numpy = pytest.importorskip("numpy")
     if screen_utils.locate_tesseract() is None:
-        pytest.skip("Tesseract nao instalado")
+        pytest.skip("Tesseract not installed")
 
     x, y, w, h = screen_utils.NAME_BOX_REGION
     frame = numpy.zeros((y + h + 40, x + w + 40, 3), dtype=numpy.uint8)
-    # Caixa de Nome do Excel em tema escuro: texto claro sobre fundo escuro
+    # Excel Name Box in dark theme: light text on a dark background
     frame[:] = (32, 32, 32)
     cv2.putText(frame, "B37", (x + 2, y + h - 6), cv2.FONT_HERSHEY_SIMPLEX,
                 0.55, (240, 240, 240), 1, cv2.LINE_AA)
@@ -1874,130 +1875,129 @@ def test_read_name_box_le_texto_sintetico():
     assert screen_utils.read_name_box(frame) == "B37"
 
 
-def test_read_name_box_frame_em_branco_e_vazio_nao_ilegivel():
-    """Frame sem nada e regiao EM BRANCO ("") -- nao "texto ilegivel".
+def test_read_name_box_blank_frame_is_empty_not_unreadable():
+    """A frame with nothing is a BLANK region ("") -- not "unreadable text".
 
-    A distincao decide o que o `goto` faz: branco aborta (modo de edicao
-    de celula), ilegivel segue sem confirmar.
+    The distinction decides what `goto` does: blank aborts (cell-edit mode),
+    unreadable goes on without confirming.
     """
     numpy = pytest.importorskip("numpy")
     if screen_utils.locate_tesseract() is None:
-        pytest.skip("Tesseract nao instalado")
+        pytest.skip("Tesseract not installed")
     frame = numpy.zeros((400, 400, 3), dtype=numpy.uint8)
     assert screen_utils.read_name_box(frame) == ""
 
 
 # ---------------------------------------------------------------------------
-# goto: "nao consegui ler" != "esta no lugar errado"
+# goto: "could not read" != "is in the wrong place"
 # ---------------------------------------------------------------------------
 
-def test_goto_caixa_vazia_aborta_por_modo_de_edicao(monkeypatch):
-    """Caixa de Nome em branco e evidencia POSITIVA de estado ruim.
+def test_goto_empty_box_aborts_due_to_edit_mode(monkeypatch):
+    """A blank Name Box is POSITIVE evidence of a bad state.
 
-    No Excel ela so fica vazia em modo de edicao de celula, e ali o F5 nem
-    navega -- foi o estado em que o rig ficou depois de uma formula
-    truncada. Seguir digitando dali escreveria dentro da celula em edicao.
+    In Excel it only goes blank in cell-edit mode, and there F5 does not even
+    navigate -- it was the state the rig got into after a truncated formula.
+    Typing on from there would write inside the cell being edited.
     """
     ctx, fake = make_namebox_ctx(monkeypatch, [""])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34", "verify_timeout": 0},
-        {"action": "type_text", "text": "nao deve rodar"},
+        {"action": "type_text", "text": "must not run"},
     ], ctx)
 
     assert ok is False
     assert results[0]["aborted_batch"] is True
-    assert "VAZIA" in results[0]["error"]
-    assert "edicao" in results[0]["error"]
+    assert "EMPTY" in results[0]["error"]
+    assert "edit" in results[0]["error"]
     assert results[1]["status"] == "skipped"
-    assert not any(c[0] == "type_text" and "nao deve" in c[1] for c in fake.calls)
+    assert not any(c[0] == "type_text" and "must not" in c[1] for c in fake.calls)
 
 
-def test_goto_ilegivel_segue_sem_confirmar(monkeypatch):
-    """OCR que nao decifra e FALTA de prova, nao prova de erro.
+def test_goto_unreadable_goes_on_without_confirming(monkeypatch):
+    """OCR that does not decode is a LACK of proof, not proof of error.
 
-    Abortar aqui faria a fragilidade do OCR -- que erra em refs curtas
-    como "A1" dependendo da escala -- derrubar lotes perfeitamente
-    corretos. Segue, mas registra checked=False para ficar auditavel.
+    Aborting here would let OCR fragility -- which errs on short refs like
+    "A1" depending on the scale -- bring down perfectly correct batches. It
+    goes on, but records checked=False to stay auditable.
     """
     ctx, fake = make_namebox_ctx(monkeypatch, [None])
     ok, results = run_steps([
         {"action": "goto", "ref": "A34", "verify_timeout": 0},
-        {"action": "type_text", "text": "pode rodar"},
+        {"action": "type_text", "text": "may run"},
     ], ctx)
 
     assert ok is True
     assert results[0]["checked"] is False
-    assert "ilegivel" in results[0]["reason"]
-    assert ("type_text", "pode rodar") in fake.calls
+    assert "unreadable" in results[0]["reason"]
+    assert ("type_text", "may run") in fake.calls
 
 
-def test_os_tres_desfechos_do_goto_sao_distintos(monkeypatch):
-    """Celula certa / celula errada / ilegivel nao podem colapsar em dois."""
-    desfechos = {}
-    for nome, leitura in [("certo", "A34"), ("errado", "A32"), ("ilegivel", None)]:
-        ctx, _ = make_namebox_ctx(monkeypatch, [leitura])
+def test_the_three_goto_outcomes_are_distinct(monkeypatch):
+    """Right cell / wrong cell / unreadable must not collapse into two."""
+    outcomes = {}
+    for name, reading in [("right", "A34"), ("wrong", "A32"), ("unreadable", None)]:
+        ctx, _ = make_namebox_ctx(monkeypatch, [reading])
         ok, results = run_steps(
             [{"action": "goto", "ref": "A34", "verify_timeout": 0}], ctx)
-        desfechos[nome] = (ok, results[0].get("checked"))
+        outcomes[name] = (ok, results[0].get("checked"))
 
-    assert desfechos["certo"] == (True, True)
-    assert desfechos["errado"][0] is False
-    assert desfechos["ilegivel"] == (True, False)
+    assert outcomes["right"] == (True, True)
+    assert outcomes["wrong"][0] is False
+    assert outcomes["unreadable"] == (True, False)
 
 
-def test_read_name_box_distingue_vazio_de_ilegivel():
-    """'' = regiao em branco; None = tem texto mas nao decifrou."""
+def test_read_name_box_distinguishes_empty_from_unreadable():
+    """'' = blank region; None = has text but did not decode."""
     numpy = pytest.importorskip("numpy")
     cv2 = pytest.importorskip("cv2")
     if screen_utils.locate_tesseract() is None:
-        pytest.skip("Tesseract nao instalado")
+        pytest.skip("Tesseract not installed")
 
     x, y, w, h = screen_utils.NAME_BOX_REGION
-    vazio = numpy.full((y + h + 20, x + w + 20, 3), 32, dtype=numpy.uint8)
-    assert screen_utils.read_name_box(vazio) == ""
+    empty = numpy.full((y + h + 20, x + w + 20, 3), 32, dtype=numpy.uint8)
+    assert screen_utils.read_name_box(empty) == ""
 
-    com_texto = vazio.copy()
-    cv2.putText(com_texto, "####", (x + 2, y + h - 6),
+    with_text = empty.copy()
+    cv2.putText(with_text, "####", (x + 2, y + h - 6),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (240, 240, 240), 1, cv2.LINE_AA)
-    assert screen_utils.read_name_box(com_texto) is None
+    assert screen_utils.read_name_box(with_text) is None
 
 
 # ---------------------------------------------------------------------------
-# portao de caracteres ABNT2 nao medidos
+# gate for unmeasured ABNT2 characters
 # ---------------------------------------------------------------------------
 
-def test_unverified_in_steps_aponta_passo_e_caracteres(monkeypatch):
-    # O conjunto real esta VAZIO desde o probe de 2026-11-07, entao um
-    # caractere e injetado: o portao do daemon precisa continuar
-    # testado para a proxima entrada que alguem inferir, e nao so
-    # enquanto houver pendencia.
+def test_unverified_in_steps_points_to_step_and_characters(monkeypatch):
+    # The real set has been EMPTY since the probe of 2026-11-07, so a
+    # character is injected: the daemon's gate must stay tested for the next
+    # entry someone infers, and not only while there is a pending one.
     monkeypatch.setattr(hid_keycodes, "UNVERIFIED_CHARS", frozenset('"[]'))
     steps = [
         {"action": "goto", "ref": "A1"},
         {"action": "type_text", "text": "=SOMA(A1:A3)"},
-        {"action": "type_text", "text": 'rotulo "x" e [y]'},
+        {"action": "type_text", "text": 'label "x" and [y]'},
     ]
     assert agent_daemon.unverified_in_steps(steps) == [(2, ['"', "[", "]"])]
 
 
-def test_unverified_in_steps_nao_reclama_do_que_ja_foi_medido():
-    steps = [{"action": "type_text", "text": 'rotulo "x" e [y] ~ ^ ´'}]
+def test_unverified_in_steps_does_not_complain_about_measured_chars():
+    steps = [{"action": "type_text", "text": 'label "x" and [y] ~ ^ ´'}]
     assert agent_daemon.unverified_in_steps(steps) == []
 
 
-def test_unverified_in_steps_ignora_passo_sem_texto():
-    # nao pode explodir em lote malformado: quem valida campo e o passo
+def test_unverified_in_steps_ignores_a_step_without_text():
+    # it must not blow up on a malformed batch: the step validates its field
     steps = [{"action": "type_text"}, {"action": "click", "x": 1, "y": 2},
-             "nao sou dict"]
+             "not a dict"]
     assert agent_daemon.unverified_in_steps(steps) == []
 
 
-def test_lote_com_caractere_nao_medido_nao_digita_nada(monkeypatch):
-    """Recusa ANTES da primeira tecla, nao no meio.
+def test_batch_with_unmeasured_char_types_nothing(monkeypatch):
+    """Refuse BEFORE the first key, not halfway.
 
-    Parar no meio e o pior desfecho: meia formula fica na celula como
-    texto e o passo seguinte digita em cima. O passo 0 aqui e valido de
-    proposito -- ele tambem nao pode rodar.
+    Stopping halfway is the worst outcome: half a formula stays in the cell as
+    text and the next step types on top of it. Step 0 here is valid on purpose
+    -- it must not run either.
     """
     monkeypatch.setattr(hid_keycodes, "UNVERIFIED_CHARS", frozenset('"'))
     ctx, fake = make_ctx()
@@ -2009,12 +2009,12 @@ def test_lote_com_caractere_nao_medido_nao_digita_nada(monkeypatch):
     assert ok is False
     assert fake.calls == []
     assert [r["status"] for r in results] == ["skipped", "skipped"]
-    assert "nunca medido no rig" in results[0]["reason"]
-    assert "passo 1" in results[0]["reason"]
+    assert "never measured on the rig" in results[0]["reason"]
+    assert "step 1" in results[0]["reason"]
 
 
-def test_lote_sem_caractere_suspeito_roda_normalmente():
-    # o portao nao pode virar um "nao digito mais nada"
+def test_batch_without_a_suspect_char_runs_normally():
+    # the gate must not become a "I will not type anything anymore"
     ctx, fake = make_ctx()
     ok, _ = run_steps(
         [{"action": "type_text", "text": "=POTÊNCIA(1+$B$9;B30)"}], ctx)
@@ -2024,96 +2024,96 @@ def test_lote_sem_caractere_suspeito_roda_normalmente():
 
 
 # ---------------------------------------------------------------------------
-# instancia unica por fila
+# single instance per queue
 # ---------------------------------------------------------------------------
 
-def test_segundo_daemon_na_mesma_fila_e_recusado(tmp_path):
-    """Dois daemons na mesma fila disputam o mesmo request e a mesma
-    porta serial: os bytes dos dois lotes se intercalam na linha de
-    9600 bps e o texto sai pela metade, sem erro nenhum.
+def test_second_daemon_on_the_same_queue_is_refused(tmp_path):
+    """Two daemons on the same queue contend for the same request and the
+    same serial port: the bytes of the two batches interleave on the 9600 bps
+    line and the text comes out halfway, with no error at all.
     """
-    primeiro = agent_daemon.acquire_queue_lock(str(tmp_path))
+    first = agent_daemon.acquire_queue_lock(str(tmp_path))
     try:
         with pytest.raises(agent_daemon.AlreadyRunning):
             agent_daemon.acquire_queue_lock(str(tmp_path))
     finally:
-        primeiro.close()
+        first.close()
 
 
-def test_lock_liberado_aceita_o_proximo_daemon():
-    """Sem lock velho: quem fecha devolve a fila.
+def test_released_lock_accepts_the_next_daemon():
+    """No stale lock: whoever closes gives the queue back.
 
-    O lock e do SO justamente para isso -- um arquivo com PID exigiria
-    checar se o PID vive, e no Windows `os.kill(pid, 0)` chama
-    TerminateProcess: a checagem mataria o processo verificado.
+    The lock is the OS's precisely for that -- a PID file would require
+    checking whether the PID lives, and on Windows `os.kill(pid, 0)` calls
+    TerminateProcess: the check would kill the process it is checking.
     """
     import tempfile
 
-    pasta = tempfile.mkdtemp(prefix="lock_")
-    agent_daemon.acquire_queue_lock(pasta).close()
-    segundo = agent_daemon.acquire_queue_lock(pasta)
-    segundo.close()
+    folder = tempfile.mkdtemp(prefix="lock_")
+    agent_daemon.acquire_queue_lock(folder).close()
+    second = agent_daemon.acquire_queue_lock(folder)
+    second.close()
 
 
-def test_lock_registra_o_pid_de_quem_esta_atendendo(tmp_path):
+def test_lock_records_the_pid_of_the_one_serving(tmp_path):
     handle = agent_daemon.acquire_queue_lock(str(tmp_path))
     try:
-        caminho = tmp_path / agent_daemon.LOCK_NAME
-        assert caminho.read_text().strip() == str(os.getpid())
+        path = tmp_path / agent_daemon.LOCK_NAME
+        assert path.read_text().strip() == str(os.getpid())
     finally:
         handle.close()
 
 
-def test_lock_cria_a_fila_se_ela_nao_existir(tmp_path):
-    destino = tmp_path / "fila_nova"
-    handle = agent_daemon.acquire_queue_lock(str(destino))
+def test_lock_creates_the_queue_if_it_does_not_exist(tmp_path):
+    target = tmp_path / "new_queue"
+    handle = agent_daemon.acquire_queue_lock(str(target))
     try:
-        assert destino.is_dir()
+        assert target.is_dir()
     finally:
         handle.close()
 
 
 # ---------------------------------------------------------------------------
-# confusao de glifo na Caixa de Nome
+# glyph confusion in the Name Box
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("pedido,lido", [
-    ("A42", "AA2"),   # medido no rig: o "4" vira "A" e MOVE o corte
+@pytest.mark.parametrize("requested,read_text", [
+    ("A42", "AA2"),   # measured on the rig: the "4" becomes "A" and MOVES the cut
     ("B46", "B4G"),
     ("A1", "AI"),
     ("A60", "A6O"),
     ("C32", "C3Z"),
 ])
-def test_leitura_confundida_conta_como_mesma_celula(pedido, lido):
-    assert screen_utils.confusable_key(lido) == screen_utils.confusable_key(pedido)
+def test_confused_reading_counts_as_the_same_cell(requested, read_text):
+    assert screen_utils.confusable_key(read_text) == screen_utils.confusable_key(requested)
 
 
-@pytest.mark.parametrize("pedido,lido", [
-    ("A34", "A32"),   # linha de verdade diferente
-    ("A42", "B42"),   # coluna de verdade diferente
+@pytest.mark.parametrize("requested,read_text", [
+    ("A34", "A32"),   # a genuinely different row
+    ("A42", "B42"),   # a genuinely different column
     ("A1", "A60"),
-    ("B46", "B46 "),  # (igual: espaco nao conta)
+    ("B46", "B46 "),  # (equal: a space does not count)
 ])
-def test_celula_diferente_nao_e_confundida(pedido, lido):
-    iguais = screen_utils.confusable_key(lido) == screen_utils.confusable_key(pedido)
-    assert iguais == (pedido.strip() == lido.strip())
+def test_a_different_cell_is_not_confused(requested, read_text):
+    equal = screen_utils.confusable_key(read_text) == screen_utils.confusable_key(requested)
+    assert equal == (requested.strip() == read_text.strip())
 
 
-def test_classes_de_confusao_sao_disjuntas():
-    """Juntar "0/O" com "4/A" por transitividade poria "A" e "O" na mesma
-    classe, e as colunas A e O estao longe demais para isso."""
-    vistos = {}
-    for grupo in screen_utils._CONFUSABLE_CLASSES:
-        for ch in grupo:
-            assert ch not in vistos, (
-                "glifo %r em duas classes: %r e %r" % (ch, vistos[ch], grupo))
-            vistos[ch] = grupo
-    # e "A" nunca pode colapsar com "O"
+def test_confusion_classes_are_disjoint():
+    """Merging "0/O" with "4/A" by transitivity would put "A" and "O" in the
+    same class, and columns A and O are too far apart for that."""
+    seen = {}
+    for group in screen_utils._CONFUSABLE_CLASSES:
+        for ch in group:
+            assert ch not in seen, (
+                "glyph %r in two classes: %r and %r" % (ch, seen[ch], group))
+            seen[ch] = group
+    # and "A" can never collapse with "O"
     assert screen_utils.confusable_key("A") != screen_utils.confusable_key("O")
 
 
-def test_goto_aceita_a_celula_certa_lida_com_glifo_trocado(monkeypatch):
-    """Era um falso abort: o goto acertou A42 e o lote parava."""
+def test_goto_accepts_the_right_cell_read_with_a_swapped_glyph(monkeypatch):
+    """It was a false abort: the goto hit A42 and the batch stopped."""
     ctx, fake = make_namebox_ctx(monkeypatch, ["AA2"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A42"},
@@ -2122,12 +2122,12 @@ def test_goto_aceita_a_celula_certa_lida_com_glifo_trocado(monkeypatch):
 
     assert ok is True
     assert results[0]["checked"] is True
-    assert "confusao de OCR" in results[0]["reason"]
+    assert "OCR confusion" in results[0]["reason"]
     assert ("type_text", "x") in fake.calls
 
 
-def test_goto_para_de_verdade_quando_a_celula_e_outra(monkeypatch):
-    # a guarda nao pode virar um "aceita qualquer coisa"
+def test_goto_really_stops_when_the_cell_is_another(monkeypatch):
+    # the guard must not become an "accepts anything"
     ctx, fake = make_namebox_ctx(monkeypatch, ["B42"])
     ok, results = run_steps([
         {"action": "goto", "ref": "A42"},
@@ -2139,15 +2139,15 @@ def test_goto_para_de_verdade_quando_a_celula_e_outra(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# expect por texto: varias escalas de OCR
+# expect by text: several OCR scales
 # ---------------------------------------------------------------------------
 
-def test_expect_acha_o_texto_numa_escala_maior(monkeypatch):
-    """Era o falso negativo da pos-condicao: "FCFF" esta na tela, mas a
-    2x o Tesseract leu "Gigg" e o lote abortou."""
+def test_expect_finds_the_text_at_a_larger_scale(monkeypatch):
+    """It was the post-condition's false negative: "FCFF" is on screen, but at
+    2x Tesseract read "Gigg" and the batch aborted."""
     screen = FakeScreen(ocr_results=[
-        {"text": "Gigg 5612,8", "raw": ""},     # 2x: nao da
-        {"text": "FCFF 5612,8", "raw": ""},     # 4x: da
+        {"text": "Gigg 5612,8", "raw": ""},     # 2x: no good
+        {"text": "FCFF 5612,8", "raw": ""},     # 4x: good
     ])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
@@ -2159,9 +2159,8 @@ def test_expect_acha_o_texto_numa_escala_maior(monkeypatch):
     assert screen.ocr_upscales[:2] == [2, 4]
 
 
-def test_expect_para_na_primeira_escala_que_acha(monkeypatch):
-    # cada escala e uma chamada de OCR; achar na primeira nao pode
-    # custar as outras
+def test_expect_stops_at_the_first_scale_that_matches(monkeypatch):
+    # each scale is an OCR call; matching at the first must not cost the others
     screen = FakeScreen(ocr_results=[{"text": "PREMISSAS", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, results = run_steps([
@@ -2173,17 +2172,16 @@ def test_expect_para_na_primeira_escala_que_acha(monkeypatch):
     assert results[0]["upscale"] == 2
 
 
-def test_ausencia_exige_nao_achar_em_NENHUMA_escala(monkeypatch):
-    """A assimetria que torna a conferencia honesta.
+def test_absence_requires_not_matching_at_ANY_scale(monkeypatch):
+    """The asymmetry that makes the check honest.
 
-    Uma leitura positiva prova presenca. Nenhuma leitura positiva numa
-    unica escala nao prova ausencia -- so prova que aquela escala nao
-    leu. O reset da planilha depende disso: ele afirma que "PREMISSAS"
-    sumiu.
+    A positive read proves presence. No positive read at a single scale does
+    not prove absence -- it only proves that scale did not read. The
+    spreadsheet reset depends on this: it asserts that "PREMISSAS" is gone.
     """
     screen = FakeScreen(ocr_results=[
-        {"text": "lixo ilegivel", "raw": ""},   # 2x nao ve
-        {"text": "PREMISSAS", "raw": ""},       # 4x ve: entao NAO sumiu
+        {"text": "unreadable garbage", "raw": ""},   # 2x does not see it
+        {"text": "PREMISSAS", "raw": ""},            # 4x sees it: so NOT gone
     ])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
@@ -2195,8 +2193,8 @@ def test_ausencia_exige_nao_achar_em_NENHUMA_escala(monkeypatch):
     assert screen.ocr_upscales[:2] == [2, 4]
 
 
-def test_ausencia_confirmada_quando_nenhuma_escala_ve(monkeypatch):
-    screen = FakeScreen(ocr_results=[{"text": "planilha vazia", "raw": ""}])
+def test_absence_confirmed_when_no_scale_sees_it(monkeypatch):
+    screen = FakeScreen(ocr_results=[{"text": "empty spreadsheet", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
         {"action": "expect", "text": "PREMISSAS", "absent": True,
@@ -2204,11 +2202,11 @@ def test_ausencia_confirmada_quando_nenhuma_escala_ve(monkeypatch):
     ], ctx)
 
     assert ok is True
-    # percorreu TODAS as escalas antes de afirmar a ausencia
+    # it swept ALL scales before asserting the absence
     assert screen.ocr_upscales == list(screen_utils.TEXT_SCALES)
 
 
-def test_upscale_explicito_trava_numa_escala_so(monkeypatch):
+def test_explicit_upscale_locks_to_a_single_scale(monkeypatch):
     screen = FakeScreen(ocr_results=[{"text": "A1", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     run_steps([
@@ -2219,9 +2217,9 @@ def test_upscale_explicito_trava_numa_escala_so(monkeypatch):
     assert screen.ocr_upscales == [10]
 
 
-def test_expect_numeric_ignora_separador_de_milhar(monkeypatch):
-    """A celula mostra "67.804,85" depois de formatada; a pos-condicao
-    procura "67804". Sem `numeric` isso nao casa."""
+def test_expect_numeric_ignores_the_thousands_separator(monkeypatch):
+    """The cell shows "67.804,85" after formatting; the post-condition looks
+    for "67804". Without `numeric` that does not match."""
     screen = FakeScreen(ocr_results=[{"text": "Equity Value 67.804,85", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
@@ -2231,8 +2229,8 @@ def test_expect_numeric_ignora_separador_de_milhar(monkeypatch):
     assert ok is True
 
 
-def test_expect_sem_numeric_nao_atravessa_o_separador(monkeypatch):
-    # o flag tem que mudar algo: sem ele, "67804" nao esta em "67.804,85"
+def test_expect_without_numeric_does_not_cross_the_separator(monkeypatch):
+    # the flag must change something: without it, "67804" is not in "67.804,85"
     screen = FakeScreen(ocr_results=[{"text": "Equity Value 67.804,85", "raw": ""}])
     ctx, _ = make_expect_ctx(monkeypatch, screen)
     ok, _ = run_steps([
@@ -2242,47 +2240,47 @@ def test_expect_sem_numeric_nao_atravessa_o_separador(monkeypatch):
     assert ok is False
 
 
-def test_numeric_nao_come_a_virgula_decimal():
-    # 6,78 nao pode virar 678: so o separador ENTRE digitos some, e a
-    # virgula decimal fica
+def test_numeric_does_not_eat_the_decimal_comma():
+    # 6,78 must not become 678: only the separator BETWEEN digits goes, and
+    # the decimal comma stays
     assert screen_utils.normalize_digits("6,78") == "6,78"
     assert screen_utils.normalize_digits("1.234.567,89") == "1234567,89"
     assert screen_utils.normalize_digits("Planilha1.xlsx") == "Planilha1.xlsx"
 
 
 # ---------------------------------------------------------------------------
-# acao check_state
+# check_state action
 # ---------------------------------------------------------------------------
 
-def make_state_ctx(monkeypatch, estados, controller=None):
-    """ctx cujo classify_frame devolve a fila `estados` (o ultimo repete)."""
+def make_state_ctx(monkeypatch, states, controller=None):
+    """ctx whose classify_frame returns the `states` queue (the last repeats)."""
     ctx, fake = make_ctx(controller=controller)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
-    fila = list(estados)
+    pending = list(states)
 
     def classify_frame(frame, lang="eng"):
-        estado = fila.pop(0) if len(fila) > 1 else fila[0]
-        return estado, {}
+        state = pending.pop(0) if len(pending) > 1 else pending[0]
+        return state, {}
 
     monkeypatch.setattr(agent_daemon.target_state, "classify_frame",
                         classify_frame)
     return ctx, fake
 
 
-def test_check_state_devolve_o_estado_e_as_amostras(monkeypatch):
+def test_check_state_returns_the_state_and_the_samples(monkeypatch):
     ctx, _ = make_state_ctx(monkeypatch, [agent_daemon.target_state.APP])
     ok, results = run_steps(
         [{"action": "check_state", "interval": 0}], ctx)
 
     assert ok is True
-    assert results[0]["estado"] == agent_daemon.target_state.APP
-    assert results[0]["concorda"] is True
-    assert len(results[0]["por_frame"]) == 2   # duas amostras, sempre
+    assert results[0]["state"] == agent_daemon.target_state.APP
+    assert results[0]["agree"] is True
+    assert len(results[0]["per_frame"]) == 2   # two samples, always
 
 
-def test_check_state_require_typable_recusa_tela_bloqueada(monkeypatch):
+def test_check_state_require_typable_refuses_a_locked_screen(monkeypatch):
     ts = agent_daemon.target_state
-    ctx, fake = make_state_ctx(monkeypatch, [ts.BLOQUEIO_FOTO])
+    ctx, fake = make_state_ctx(monkeypatch, [ts.LOCK_PHOTO])
     ok, results = run_steps([
         {"action": "check_state", "require_typable": True, "interval": 0},
         {"action": "type_text", "text": "=SOMA(A1:A3)"},
@@ -2290,13 +2288,13 @@ def test_check_state_require_typable_recusa_tela_bloqueada(monkeypatch):
 
     assert ok is False
     assert ("type_text", "=SOMA(A1:A3)") not in fake.calls
-    assert "BLOQUEIO_FOTO" in results[0]["error"]
+    assert "LOCK_PHOTO" in results[0]["error"]
 
 
-def test_check_state_recusa_quando_as_amostras_discordam(monkeypatch):
-    """Sinal em transicao: o lote nao pode comecar agora."""
+def test_check_state_refuses_when_the_samples_disagree(monkeypatch):
+    """A signal in transition: the batch must not start now."""
     ts = agent_daemon.target_state
-    ctx, fake = make_state_ctx(monkeypatch, [ts.PRETO, ts.APP])
+    ctx, fake = make_state_ctx(monkeypatch, [ts.BLACK, ts.APP])
     ok, results = run_steps([
         {"action": "check_state", "require_typable": True, "interval": 0},
         {"action": "type_text", "text": "x"},
@@ -2304,12 +2302,12 @@ def test_check_state_recusa_quando_as_amostras_discordam(monkeypatch):
 
     assert ok is False
     assert fake.calls == []
-    assert "INDETERMINADO" in results[0]["error"]
+    assert "UNDETERMINED" in results[0]["error"]
 
 
-def test_check_state_deixa_passar_quando_da_para_digitar(monkeypatch):
+def test_check_state_lets_through_when_it_can_type(monkeypatch):
     ts = agent_daemon.target_state
-    ctx, fake = make_state_ctx(monkeypatch, [ts.BLOQUEIO_SENHA])
+    ctx, fake = make_state_ctx(monkeypatch, [ts.LOCK_PASSWORD])
     ok, _ = run_steps([
         {"action": "check_state", "require_typable": True, "interval": 0},
         {"action": "type_text", "text": "senha"},
@@ -2319,42 +2317,41 @@ def test_check_state_deixa_passar_quando_da_para_digitar(monkeypatch):
     assert ("type_text", "senha") in fake.calls
 
 
-def test_check_state_sem_require_typable_nao_aborta(monkeypatch):
-    # so informa; serve para diagnostico sem derrubar o lote
+def test_check_state_without_require_typable_does_not_abort(monkeypatch):
+    # it only reports; serves diagnosis without bringing down the batch
     ts = agent_daemon.target_state
-    ctx, fake = make_state_ctx(monkeypatch, [ts.SEM_SINAL])
+    ctx, fake = make_state_ctx(monkeypatch, [ts.NO_SIGNAL])
     ok, results = run_steps([
         {"action": "check_state", "interval": 0},
         {"action": "press_key", "key": "esc"},
     ], ctx)
 
     assert ok is True
-    assert results[0]["estado"] == ts.SEM_SINAL
-    # o passo seguinte rodou: sem require_typable a acao so informa
+    assert results[0]["state"] == ts.NO_SIGNAL
+    # the next step ran: without require_typable the action only reports
     assert results[1]["status"] == "ok"
     assert ("key_press", 0x29, 0) in fake.calls   # esc
 
 
-def test_check_state_e_abortivo_por_natureza():
+def test_check_state_is_abortive_by_nature():
     assert "check_state" in agent_daemon.ABORT_BY_DEFAULT
 
 
 # ---------------------------------------------------------------------
-# capture_array e o caminho das VERIFICACOES (expect, ocr_region,
-# find_image, wait_for_text, check_state). Ate 2026-11-08 ele tinha sua
-# propria copia do grab/read e por isso ficou de fora do conserto do
-# frame atrasado -- o conserto cobriu so o caminho que salva PNG.
+# capture_array is the path of the VERIFICATIONS (expect, ocr_region,
+# find_image, wait_for_text, check_state). Until 2026-11-08 it had its own
+# copy of the grab/read and so was left out of the stale-frame fix -- the
+# fix covered only the path that saves a PNG.
 # ---------------------------------------------------------------------
 
-# Guardado no import, ANTES do fixture autouse que bloqueia captura
-# real: estes dois testes querem exercitar a implementacao de verdade,
-# nao um stub.
+# Saved at import, BEFORE the autouse fixture that blocks real capture:
+# these two tests want to exercise the real implementation, not a stub.
 _CAPTURE_ARRAY_REAL = agent_daemon.DaemonContext.capture_array
 
 
-class CapturadorFalso:
-    """Devolve 'frame_anterior' no primeiro read() e 'frame_atual'
-    depois -- imita o pipeline que fica uma captura atrasada."""
+class FakeCapture:
+    """Returns 'previous_frame' on the first read() and 'current_frame'
+    after -- imitates the pipeline that stays one capture behind."""
 
     def __init__(self):
         self.grabs = 0
@@ -2366,128 +2363,128 @@ class CapturadorFalso:
 
     def read(self):
         self.reads += 1
-        return True, "frame_anterior" if self.reads == 1 else "frame_atual"
+        return True, "previous_frame" if self.reads == 1 else "current_frame"
 
     def release(self):
         pass
 
 
-def test_capture_array_nao_devolve_o_frame_anterior(monkeypatch):
-    """A regressao que motivou tudo: o caminho que decide se pode
-    digitar lia o frame de antes da acao."""
+def test_capture_array_does_not_return_the_previous_frame(monkeypatch):
+    """The regression that motivated everything: the path that decides whether
+    it can type was reading the frame from before the action."""
     monkeypatch.setattr(agent_daemon.DaemonContext, "capture_array",
                         _CAPTURE_ARRAY_REAL)
-    cap = CapturadorFalso()
+    cap = FakeCapture()
     ctx = agent_daemon.DaemonContext(lambda: None)
     monkeypatch.setattr(ctx, "_ensure_capture", lambda: cap, raising=False)
 
-    assert ctx.capture_array() == "frame_atual"
-    assert cap.reads > 1, "sem read() descartado volta o frame anterior"
+    assert ctx.capture_array() == "current_frame"
+    assert cap.reads > 1, "without a discarded read() the previous frame comes back"
 
 
-def test_os_dois_caminhos_de_captura_usam_a_mesma_leitura(monkeypatch, tmp_path):
-    """Prende a CAUSA do bug, nao so o sintoma.
+def test_the_two_capture_paths_use_the_same_read(monkeypatch, tmp_path):
+    """Pins the CAUSE of the bug, not just the symptom.
 
-    O defeito nao foi esquecer um descarte: foi existir duas copias da
-    leitura, de modo que consertar uma deixasse a outra para tras. Se
-    alguem reimplementar grab/read num dos lados, os dois caminhos
-    passam a divergir e este teste cai."""
+    The defect was not forgetting one discard: it was having two copies of
+    the read, so that fixing one left the other behind. If someone
+    reimplements grab/read on one side, the two paths start to diverge and
+    this test fails."""
     monkeypatch.setattr(capture_frame.cv2, "imwrite", lambda path, frame: True)
 
-    cap_arquivo = CapturadorFalso()
-    capture_frame.capture_frame_to_file(str(tmp_path / "a.png"), cap=cap_arquivo)
+    cap_file = FakeCapture()
+    capture_frame.capture_frame_to_file(str(tmp_path / "a.png"), cap=cap_file)
 
     monkeypatch.setattr(agent_daemon.DaemonContext, "capture_array",
                         _CAPTURE_ARRAY_REAL)
-    cap_array = CapturadorFalso()
+    cap_array = FakeCapture()
     ctx = agent_daemon.DaemonContext(lambda: None)
     monkeypatch.setattr(ctx, "_ensure_capture", lambda: cap_array, raising=False)
     ctx.capture_array()
 
-    assert (cap_arquivo.grabs, cap_arquivo.reads) == (cap_array.grabs, cap_array.reads)
+    assert (cap_file.grabs, cap_file.reads) == (cap_array.grabs, cap_array.reads)
 
 
-def test_o_timeout_padrao_cobre_o_pior_caso_medido_com_folga():
-    """O padrao do expect nao e numero redondo escolhido a esmo.
+def test_the_default_timeout_covers_the_worst_measured_case_with_margin():
+    """The expect default is not a round number picked at random.
 
-    Medido no rig em 2026-11-08: 10 de 10 expects passaram, precisando
-    de 2 leituras em nove deles. O padrao tem que dar bem mais que isso,
-    senao volta a reprovar com o texto na tela -- que foi exatamente o
-    bug do `timeout` zero."""
-    leituras = int(agent_daemon.EXPECT_TIMEOUT_PADRAO
-                   / agent_daemon.EXPECT_POLL_PADRAO) + 1
-    assert leituras >= agent_daemon.EXPECT_TENTATIVAS_MEDIDAS * 2, (
-        "o padrao deixou de ter folga sobre o pior caso medido no rig")
+    Measured on the rig on 2026-11-08: 10 of 10 expects passed, needing 2
+    reads in nine of them. The default must give well more than that, or it
+    goes back to failing with the text on screen -- which was exactly the
+    zero-`timeout` bug."""
+    reads = int(agent_daemon.EXPECT_TIMEOUT_DEFAULT
+                / agent_daemon.EXPECT_POLL_DEFAULT) + 1
+    assert reads >= agent_daemon.EXPECT_ATTEMPTS_MEASURED * 2, (
+        "the default lost its margin over the worst case measured on the rig")
 
 
-def test_uma_leitura_so_nao_seria_suficiente():
-    """Prende o motivo de o padrao nao poder voltar a ser zero.
+def test_a_single_read_would_not_be_enough():
+    """Pins why the default must not go back to zero.
 
-    Nove dos dez ciclos medidos precisaram de uma SEGUNDA leitura."""
-    assert agent_daemon.EXPECT_TENTATIVAS_MEDIDAS > 1
-    assert agent_daemon.EXPECT_TIMEOUT_PADRAO > 0, (
-        "com timeout 0 o expect le uma vez so, e o rig mostrou que uma "
-        "leitura reprova 9 de 10 vezes com o texto na tela")
+    Nine of the ten measured cycles needed a SECOND read."""
+    assert agent_daemon.EXPECT_ATTEMPTS_MEASURED > 1
+    assert agent_daemon.EXPECT_TIMEOUT_DEFAULT > 0, (
+        "with timeout 0 the expect reads only once, and the rig showed that one "
+        "read fails 9 of 10 times with the text on screen")
 
 
 # ---------------------------------------------------------------------
-# type_text "secret": a guarda da senha.
+# type_text "secret": the password guard.
 #
-# Nasceu de um lote que EU montei em 2026-11-08: ele leu BLOQUEIO_FOTO
-# -- estado que pode_digitar() recusa -- e digitou a senha logo em
-# seguida, porque nada obrigava a olhar. Funcionou por sorte.
+# Born from a batch I built on 2026-11-08: it read LOCK_PHOTO -- a state that
+# can_type() refuses -- and typed the password right after, because nothing
+# forced a look. It worked by luck.
 # ---------------------------------------------------------------------
 
-def _ctx_com_estado(monkeypatch, estado, concorda=True):
+def _ctx_with_state(monkeypatch, state, agree=True):
     controller = FakeController()
     ctx = agent_daemon.DaemonContext(lambda: controller)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
-    monkeypatch.setattr(agent_daemon.target_state, "amostrar",
-                        lambda *a, **k: {"estado": estado,
-                                         "concorda": concorda,
-                                         "por_frame": [estado, estado]})
+    monkeypatch.setattr(agent_daemon.target_state, "sample",
+                        lambda *a, **k: {"state": state,
+                                         "agree": agree,
+                                         "per_frame": [state, state]})
     return ctx, controller
 
 
-def test_secret_digita_na_tela_de_senha(monkeypatch):
-    ctx, controller = _ctx_com_estado(monkeypatch, agent_daemon.target_state.BLOQUEIO_SENHA)
+def test_secret_types_on_the_password_screen(monkeypatch):
+    ctx, controller = _ctx_with_state(monkeypatch, agent_daemon.target_state.LOCK_PASSWORD)
     ok, _ = run_steps([{"action": "type_text", "text": "s3nh4", "secret": True}], ctx)
     assert ok
     assert ("type_text", "s3nh4") in controller.calls
 
 
-@pytest.mark.parametrize("estado", [
-    "APP",                 # o caso perigoso: janela de aplicativo em foco
-    "BLOQUEIO_FOTO",
-    "SEM_SINAL",
-    "PRETO",
-    "INDETERMINADO",
+@pytest.mark.parametrize("state", [
+    "APP",                 # the dangerous case: an application window focused
+    "LOCK_PHOTO",
+    "NO_SIGNAL",
+    "BLACK",
+    "UNDETERMINED",
 ])
-def test_secret_recusa_em_qualquer_tela_que_nao_seja_a_de_senha(monkeypatch, estado):
-    """APP esta na lista de proposito: pode_digitar() aceita APP, e por
-    isso a guarda NAO pode ser pode_digitar -- a senha iria para a
-    planilha, o chat ou a barra de busca que estivesse com foco."""
-    ctx, controller = _ctx_com_estado(monkeypatch, estado)
+def test_secret_refuses_on_any_screen_other_than_the_password_one(monkeypatch, state):
+    """APP is on the list on purpose: can_type() accepts APP, and that is why
+    the guard CANNOT be can_type -- the password would go to the spreadsheet,
+    the chat or the search bar that had focus."""
+    ctx, controller = _ctx_with_state(monkeypatch, state)
     ok, results = run_steps([{"action": "type_text", "text": "s3nh4", "secret": True}], ctx)
     assert not ok
     assert not any(c[0] == "type_text" for c in controller.calls), (
-        "a senha NAO pode ter sido enviada")
-    assert "secreto recusado" in results[0]["error"]
+        "the password must NOT have been sent")
+    assert "refused" in results[0]["error"]
 
 
-def test_secret_recusa_quando_as_amostras_discordam(monkeypatch):
-    """Tela em transicao nao e lugar de digitar senha."""
-    ctx, controller = _ctx_com_estado(
-        monkeypatch, agent_daemon.target_state.BLOQUEIO_SENHA, concorda=False)
+def test_secret_refuses_when_the_samples_disagree(monkeypatch):
+    """A screen in transition is no place to type a password."""
+    ctx, controller = _ctx_with_state(
+        monkeypatch, agent_daemon.target_state.LOCK_PASSWORD, agree=False)
     ok, _ = run_steps([{"action": "type_text", "text": "s3nh4", "secret": True}], ctx)
     assert not ok
     assert not any(c[0] == "type_text" for c in controller.calls)
 
 
-def test_secret_recusado_aborta_o_lote(monkeypatch):
-    """Se os passos seguintes rodassem, o Enter submeteria campo vazio e
-    queimaria uma das tres tentativas de senha."""
-    ctx, controller = _ctx_com_estado(monkeypatch, "APP")
+def test_refused_secret_aborts_the_batch(monkeypatch):
+    """If the following steps ran, the Enter would submit an empty field and
+    burn one of the three password attempts."""
+    ctx, controller = _ctx_with_state(monkeypatch, "APP")
     ok, results = run_steps([
         {"action": "type_text", "text": "s3nh4", "secret": True},
         {"action": "press_key", "key": "enter"},
@@ -2495,13 +2492,13 @@ def test_secret_recusado_aborta_o_lote(monkeypatch):
     assert not ok
     assert results[1]["status"] == "skipped"
     assert not any(c[0] == "press_named_key" for c in controller.calls), (
-        "o Enter nao pode ter rodado: submeteria campo vazio e queimaria "
-        "uma das tres tentativas")
+        "the Enter must not have run: it would submit an empty field and burn "
+        "one of the three attempts")
 
 
-def test_secret_mal_escrito_e_recusado_em_vez_de_ignorado():
-    """Um 'secret' que nao vale nada e pior que nenhum: da confianca de
-    uma guarda que nao existe."""
+def test_malformed_secret_is_refused_instead_of_ignored():
+    """A 'secret' that is worth nothing is worse than none: it gives the
+    confidence of a guard that does not exist."""
     with pytest.raises(ValueError, match="secret"):
         agent_daemon.parse_request(
             {"steps": [{"action": "type_text", "text": "x", "secret": "true"}]})
@@ -2510,21 +2507,21 @@ def test_secret_mal_escrito_e_recusado_em_vez_de_ignorado():
             {"steps": [{"action": "press_key", "key": "enter", "secret": True}]})
 
 
-def test_request_com_segredo_e_apagado_e_nao_arquivado(tmp_path):
-    """Senha arquivada em processed/ fica em claro no disco. Ate hoje
-    isso dependia de eu lembrar de apagar na mao."""
-    req = tmp_path / "900_entra.json"
+def test_request_with_a_secret_is_deleted_not_archived(tmp_path):
+    """A password archived in processed/ stays in cleartext on disk. Until now
+    this depended on me remembering to delete it by hand."""
+    req = tmp_path / "900_enter.json"
     req.write_text("{}", encoding="utf-8")
     processed = tmp_path / "processed"
     processed.mkdir()
 
-    agent_daemon._finish_request(str(req), str(processed), secreto=True)
+    agent_daemon._finish_request(str(req), str(processed), secret=True)
 
     assert not req.exists()
-    assert list(processed.iterdir()) == [], "a senha nao pode ir para processed/"
+    assert list(processed.iterdir()) == [], "the password must not go to processed/"
 
 
-def test_request_comum_continua_sendo_arquivado(tmp_path):
+def test_an_ordinary_request_is_still_archived(tmp_path):
     req = tmp_path / "901_normal.json"
     req.write_text("{}", encoding="utf-8")
     processed = tmp_path / "processed"
@@ -2535,99 +2532,99 @@ def test_request_comum_continua_sendo_arquivado(tmp_path):
     assert [p.name for p in processed.iterdir()] == ["901_normal.json"]
 
 
-def test_tem_passo_secreto_acha_em_qualquer_posicao():
-    passos = [{"action": "click"}, {"action": "type_text", "secret": True}]
-    assert agent_daemon.tem_passo_secreto(passos)
-    assert not agent_daemon.tem_passo_secreto([{"action": "type_text"}])
-    assert not agent_daemon.tem_passo_secreto([])
+def test_has_secret_step_finds_it_in_any_position():
+    steps = [{"action": "click"}, {"action": "type_text", "secret": True}]
+    assert agent_daemon.has_secret_step(steps)
+    assert not agent_daemon.has_secret_step([{"action": "type_text"}])
+    assert not agent_daemon.has_secret_step([])
 
 
-def test_request_com_segredo_nao_sobra_no_disco_passando_pelo_daemon(tmp_path, monkeypatch):
-    """O teste anterior chamava _finish_request DIRETO e por isso nao
-    cobria a fiacao: numa mutacao que voltava a arquivar o request com
-    senha, ele passava. Este vai pelo caminho de verdade.
+def test_request_with_a_secret_does_not_remain_on_disk_through_the_daemon(tmp_path, monkeypatch):
+    """The previous test called _finish_request DIRECTLY and so did not cover
+    the wiring: on a mutation that went back to archiving the request with a
+    password, it passed. This one goes through the real path.
 
-    Importa porque o que vaza nao e a funcao -- e o arquivo que fica em
-    processed/ com a senha em claro."""
+    It matters because what leaks is not the function -- it is the file left
+    in processed/ with the password in cleartext."""
     requests_dir, responses_dir, processed_dir, processing_dir, failed_dir, frames_dir = make_queue(tmp_path)
-    request_path = os.path.join(requests_dir, "902_entra.json")
+    request_path = os.path.join(requests_dir, "902_enter.json")
     with open(request_path, "w", encoding="utf-8") as f:
         json.dump({"steps": [
-            {"action": "type_text", "text": "s3nh4-de-verdade", "secret": True}
+            {"action": "type_text", "text": "s3nh4-for-real", "secret": True}
         ]}, f)
 
     ctx, _ = make_ctx()
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
-    monkeypatch.setattr(agent_daemon.target_state, "amostrar",
-                        lambda *a, **k: {"estado": agent_daemon.target_state.BLOQUEIO_SENHA,
-                                         "concorda": True,
-                                         "por_frame": ["BLOQUEIO_SENHA"] * 2})
+    monkeypatch.setattr(agent_daemon.target_state, "sample",
+                        lambda *a, **k: {"state": agent_daemon.target_state.LOCK_PASSWORD,
+                                         "agree": True,
+                                         "per_frame": ["LOCK_PASSWORD"] * 2})
 
     agent_daemon.process_request_file(
         request_path, ctx, responses_dir, processed_dir, processing_dir,
         failed_dir, frames_dir=frames_dir)
 
     assert not os.path.exists(request_path)
-    assert os.listdir(processed_dir) == [], "request com senha arquivado"
+    assert os.listdir(processed_dir) == [], "request with a password archived"
     assert os.listdir(processing_dir) == []
 
-    # e o response, que FICA no disco, nao pode carregar o texto
-    with open(os.path.join(responses_dir, "902_entra.json"), encoding="utf-8") as f:
-        bruto = f.read()
-    assert "s3nh4-de-verdade" not in bruto
+    # and the response, which STAYS on disk, must not carry the text
+    with open(os.path.join(responses_dir, "902_enter.json"), encoding="utf-8") as f:
+        raw_text = f.read()
+    assert "s3nh4-for-real" not in raw_text
 
 
 # ---------------------------------------------------------------------
-# focus_window: olhar ANTES de clicar.
+# focus_window: look BEFORE you click.
 #
-# Em 2026-11-19 um lote meu clicou no icone do WhatsApp na barra de
-# tarefas. A janela JA estava em foco, e o clique no icone de uma janela
-# focada MINIMIZA ela -- derrubei a tela que o usuario tinha deixado
-# preparada, e o expect seguinte abortou o lote.
+# On 2026-11-19 a batch of mine clicked the WhatsApp icon on the taskbar. The
+# window was ALREADY focused, and clicking the icon of a focused window
+# MINIMIZES it -- I knocked down the screen the user had left ready, and the
+# next expect aborted the batch.
 # ---------------------------------------------------------------------
 
-def _ctx_focus(monkeypatch, achados):
-    """achados: lista de respostas de find_image_in_frame, em ordem."""
+def _ctx_focus(monkeypatch, results):
+    """results: list of find_image_in_frame responses, in order."""
     controller = FakeController()
     ctx = agent_daemon.DaemonContext(lambda: controller)
     monkeypatch.setattr(ctx, "capture_array", lambda: "FRAME", raising=False)
-    fila = list(achados)
+    pending = list(results)
     monkeypatch.setattr(agent_daemon.screen_utils, "find_image_in_frame",
-                        lambda *a, **k: fila.pop(0) if fila else {"found": False, "confidence": 0.0})
+                        lambda *a, **k: pending.pop(0) if pending else {"found": False, "confidence": 0.0})
     return ctx, controller
 
 
-def test_focus_window_nao_clica_se_a_janela_ja_esta_na_frente(monkeypatch):
-    """A regressao exata: clicar aqui MINIMIZA a janela."""
+def test_focus_window_does_not_click_if_the_window_is_already_in_front(monkeypatch):
+    """The exact regression: clicking here MINIMIZES the window."""
     ctx, controller = _ctx_focus(monkeypatch, [{"found": True, "confidence": 0.99}])
     ok, results = run_steps([{"action": "focus_window",
                               "template": "templates/wpp_janela.png",
                               "x": 898, "y": 1057}], ctx)
     assert ok
-    assert results[0]["ja_estava"] is True
-    assert results[0]["clicou"] is False
-    assert controller.calls == [], "nao pode ter clicado em nada"
+    assert results[0]["already_fronted"] is True
+    assert results[0]["clicked"] is False
+    assert controller.calls == [], "it must not have clicked anything"
 
 
-def test_focus_window_clica_quando_a_janela_nao_esta_na_frente(monkeypatch):
+def test_focus_window_clicks_when_the_window_is_not_in_front(monkeypatch):
     ctx, controller = _ctx_focus(monkeypatch, [
-        {"found": False, "confidence": 0.3},   # ainda nao esta na frente
-        {"found": True, "confidence": 0.99},   # veio depois do clique
+        {"found": False, "confidence": 0.3},   # not in front yet
+        {"found": True, "confidence": 0.99},   # came after the click
     ])
     ok, results = run_steps([{"action": "focus_window",
                               "template": "templates/wpp_janela.png",
                               "x": 898, "y": 1057}], ctx)
     assert ok
-    assert results[0]["clicou"] is True
+    assert results[0]["clicked"] is True
     assert any(c[0] == "click_absolute" for c in controller.calls)
 
 
-def test_focus_window_acha_o_icone_por_imagem(monkeypatch):
-    """Coordenada fixa e fragil: no mesmo dia o icone andou de 876 p/ 898."""
+def test_focus_window_finds_the_icon_by_image(monkeypatch):
+    """A fixed coordinate is fragile: on the same day the icon moved from 876 to 898."""
     ctx, controller = _ctx_focus(monkeypatch, [
-        {"found": False, "confidence": 0.3},               # janela nao esta na frente
-        {"found": True, "confidence": 0.98, "x": 898, "y": 1058},  # icone achado
-        {"found": True, "confidence": 0.99},               # janela veio
+        {"found": False, "confidence": 0.3},               # window not in front
+        {"found": True, "confidence": 0.98, "x": 898, "y": 1058},  # icon found
+        {"found": True, "confidence": 0.99},               # window came
     ])
     ok, results = run_steps([{"action": "focus_window",
                               "template": "templates/wpp_janela.png",
@@ -2636,27 +2633,27 @@ def test_focus_window_acha_o_icone_por_imagem(monkeypatch):
     assert (results[0]["x"], results[0]["y"]) == (898, 1058)
 
 
-def test_focus_window_sem_icone_e_sem_janela_nao_clica_a_esmo(monkeypatch):
-    """Sem saber onde clicar, recusa -- nao chuta uma coordenada."""
+def test_focus_window_without_icon_and_without_window_does_not_click_blindly(monkeypatch):
+    """With no idea where to click, it refuses -- it does not guess a coordinate."""
     ctx, controller = _ctx_focus(monkeypatch, [
-        {"found": False, "confidence": 0.3},   # janela nao esta na frente
-        {"found": False, "confidence": 0.2},   # icone nao encontrado
+        {"found": False, "confidence": 0.3},   # window not in front
+        {"found": False, "confidence": 0.2},   # icon not found
     ])
     ok, results = run_steps([{"action": "focus_window",
                               "template": "templates/wpp_janela.png",
                               "icon_template": "templates/wpp_icone_barra.png"}], ctx)
     assert not ok
     assert controller.calls == []
-    assert "icone" in results[0]["error"]
+    assert "icon" in results[0]["error"]
 
 
-def test_focus_window_aborta_o_lote_quando_a_janela_nao_vem(monkeypatch):
-    """Se a janela nao veio, os passos de escrita seguintes NAO rodam."""
+def test_focus_window_aborts_the_batch_when_the_window_does_not_come(monkeypatch):
+    """If the window did not come, the following write steps do NOT run."""
     ctx, controller = _ctx_focus(monkeypatch, [{"found": False, "confidence": 0.1}])
     ok, results = run_steps([
         {"action": "focus_window", "template": "templates/wpp_janela.png",
          "x": 898, "y": 1057, "timeout": 0},
-        {"action": "type_text", "text": "nao pode sair"},
+        {"action": "type_text", "text": "must not go out"},
     ], ctx)
     assert not ok
     assert results[1]["status"] == "skipped"

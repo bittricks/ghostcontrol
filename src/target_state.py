@@ -1,220 +1,220 @@
-"""Classifica em que estado a tela da maquina alvo esta.
+"""Classifies which state the target machine's screen is in.
 
-Por que existe
-==============
-Em 2026-11-07 eu declarei a tela "ainda bloqueada" DUAS vezes a partir
-de um unico `ocr_region` da tela inteira -- quando o Windows ja estava
-destravado e o Excel em primeiro plano. O buffer da capturadora tinha
-servido o frame "de antes", que e exatamente o que
-`docs/CAPTURA_VIDEO_BUFFER.md` documenta. Gastei tres idas e voltas
-investigando um problema que nao existia.
+Why it exists
+=============
+On 2026-11-07 I declared the screen "still locked" TWICE from a single
+`ocr_region` of the whole screen -- when Windows was already unlocked and
+Excel in the foreground. The capture device's buffer had served the frame
+"from before", which is exactly what `docs/CAPTURE_VIDEO_BUFFER.md`
+documents. I spent three round trips investigating a problem that did not
+exist.
 
-O doc existia. Nao impediu nada, porque a conferencia era montada na mao
-a cada request. Entao a regra virou codigo:
+The doc existed. It prevented nothing, because the check was assembled by
+hand on each request. So the rule became code:
 
-    UMA AMOSTRA NAO CLASSIFICA.
+    ONE SAMPLE DOES NOT CLASSIFY.
 
-`classify()` exige duas ou mais e so devolve um veredito se elas
-concordarem; discordando, devolve INDETERMINADO -- que e a resposta
-certa para "o sinal esta em transicao", e nao uma de suas pontas
-escolhida a esmo.
+`classify()` requires two or more and only returns a verdict if they
+agree; when they disagree it returns UNDETERMINED -- which is the right
+answer for "the signal is in transition", not one of its ends picked at
+random.
 
-Os cinco estados sao os que a operacao de verdade precisa distinguir, e
-cada um pede uma acao diferente (ver docs/DESBLOQUEIO_TELA.md):
+The five states are the ones real operation needs to tell apart, and each
+calls for a different action (see docs/SCREEN_UNLOCK.md):
 
-    SEM_SINAL        barras de cor: a capturadora nao recebe HDMI.
-                     Mexer o mouse e esperar; nao e erro do daemon.
-    PRETO            transicao: o sinal esta voltando. Esperar mais.
-    BLOQUEIO_FOTO    tela de bloqueio (foto+relogio). Uma tecla/clique
-                     leva ao campo de senha.
-    BLOQUEIO_SENHA   campo de senha visivel. AQUI da para digitar -- e
-                     so aqui, com `expect` em cima disso.
-    APP              area de trabalho / aplicativo real.
+    NO_SIGNAL      color bars: the capture device receives no HDMI.
+                   Move the mouse and wait; not a daemon error.
+    BLACK          transition: the signal is coming back. Wait more.
+    LOCK_PHOTO     lock screen (photo+clock). One key/click leads to the
+                   password field.
+    LOCK_PASSWORD  password field visible. HERE you can type -- and only
+                   here, with `expect` on top of it.
+    APP            desktop / real application.
 
-A segunda regra, aprendida em 2026-11-07 quando este modulo errou no
-rig pela primeira vez:
+The second rule, learned on 2026-11-07 when this module first erred on the
+rig:
 
-    APP PRECISA DE PROVA; OS OUTROS ESTADOS NAO.
+    APP NEEDS PROOF; THE OTHER STATES DO NOT.
 
-`classify_frame` so devolve APP se achar na tela uma mancha grande de
-UMA COR EXATA, que e o que um aplicativo pinta e uma foto nao (ver
-APP_COR_CHAPADA_MIN). Sem essa prova o frame cai nos estados que
-RECUSAM o teclado. A versao anterior perguntava o contrario -- "parece
-foto?" -- e tudo que nao parecesse virava APP, de modo que a falta de
-evidencia virava permissao para digitar. Numa tela de bloqueio isso
-manda a senha errada para o campo de senha, e o orcamento e de tres
-tentativas.
+`classify_frame` only returns APP if it finds on screen a large blob of ONE
+EXACT COLOR, which is what an application paints and a photo does not (see
+APP_FLAT_COLOR_MIN). Without that proof the frame falls into the states
+that REFUSE the keyboard. The previous version asked the opposite -- "does
+it look like a photo?" -- and anything that did not look like one became
+APP, so the lack of evidence became permission to type. On a lock screen
+that sends the wrong password to the password field, and the budget is
+three attempts.
 """
-SEM_SINAL = "SEM_SINAL"
-PRETO = "PRETO"
-BLOQUEIO_FOTO = "BLOQUEIO_FOTO"
-BLOQUEIO_SENHA = "BLOQUEIO_SENHA"
+NO_SIGNAL = "NO_SIGNAL"
+BLACK = "BLACK"
+LOCK_PHOTO = "LOCK_PHOTO"
+LOCK_PASSWORD = "LOCK_PASSWORD"
 APP = "APP"
-INDETERMINADO = "INDETERMINADO"
+UNDETERMINED = "UNDETERMINED"
 
-#: Abaixo disto a tela e preta. Medido: um frame preto de verdade fica
-#: em media < 20, enquanto a tela de bloqueio mais escura que vimos
-#: ficou em ~46.
-PRETO_MEDIA_MAX = 24
-PRETO_DESVIO_MAX = 18
+#: Below this the screen is black. Measured: a truly black frame averages
+#: < 20, while the darkest lock screen we saw was around 46.
+BLACK_MEAN_MAX = 24
+BLACK_STD_MAX = 18
 
-#: Barras SMPTE: cor muito saturada e constante na vertical. O desvio
-#: DENTRO de cada coluna e quase zero (a barra e uniforme de cima a
-#: baixo), e isso nenhuma tela de Windows faz.
-BARRAS_SATURACAO_MIN = 110
-BARRAS_DESVIO_VERTICAL_MAX = 14
-BARRAS_FAIXAS_MIN = 5
+#: SMPTE bars: very saturated color, constant along the vertical. The
+#: standard deviation WITHIN each column is near zero (the bar is uniform
+#: top to bottom), and no Windows screen does that.
+BARS_SATURATION_MIN = 110
+BARS_VERTICAL_STD_MAX = 14
+BARS_BANDS_MIN = 5
 
-#: O que separa APLICATIVO de FOTO: a maior mancha de UMA COR EXATA.
+#: What separates an APPLICATION from a PHOTO: the largest blob of ONE EXACT
+#: COLOR.
 #:
-#: Um aplicativo pinta um fundo de cor exata -- o branco da planilha, o
-#: cinza #1f1f1f do VS Code, o quase-preto do WhatsApp -- e essa unica
-#: cor cobre quase metade da tela. Uma foto nao repete cor exata nem no
-#: ceu mais liso: sobra ruido de sensor e de compressao. Medido em 29
-#: frames reais rotulados a olho (2026-11-07):
+#: An application paints a background of an exact color -- the white of the
+#: spreadsheet, the #1f1f1f gray of VS Code, the near-black of WhatsApp --
+#: and that single color covers almost half the screen. A photo does not
+#: repeat an exact color even in the smoothest sky: sensor and compression
+#: noise remain. Measured on 29 real frames labeled by eye (2026-11-07):
 #:
-#:   bloqueio (10 frames)     maior cor exata  0.0042 .. 0.1446
-#:   aplicativo (19 frames)   maior cor exata  0.4195 .. 0.6302
+#:   lock (10 frames)         largest exact color  0.0042 .. 0.1446
+#:   application (19 frames)  largest exact color  0.4195 .. 0.6302
 #:
-#: Quase 3x de folga, e os dois piores casos sao justamente os que
-#: derrubaram a versao anterior: bloqueio escuro 0.1446, Excel claro
-#: 0.4195. O limiar fica no meio geometrico, arredondado.
+#: Almost 3x of margin, and the two worst cases are exactly the ones that
+#: broke the previous version: dark lock 0.1446, bright Excel 0.4195. The
+#: threshold sits at the geometric mean, rounded.
 #:
-#: A VERSAO ANTERIOR usava saturacao e detalhe vertical, e os dois
-#: estavam REFUTADOS pelos frames que eu ja tinha em disco:
+#: The PREVIOUS VERSION used saturation and vertical detail, and both were
+#: REFUTED by frames I already had on disk:
 #:
-#:   VS Code escuro   saturacao 180, detalhe 35  -> chamado de FOTO
-#:   bloqueio escuro  saturacao  26, detalhe 46  -> chamado de APP
+#:   dark VS Code   saturation 180, detail 35  -> called a PHOTO
+#:   dark lock      saturation  26, detail 46  -> called an APP
 #:
-#: Errado nos dois sentidos, e o segundo e o caro: `pode_digitar`
-#: liberaria o teclado na tela de bloqueio. Os limiares tinham sido
-#: ajustados em 9 frames escolhidos por mim, todos de bloqueio colorido
-#: e Excel claro -- validar na amostra que eu mesmo montei nao e
-#: validar. Ver docs/APRENDIZADOS.md item 36.
-APP_COR_CHAPADA_MIN = 0.25
+#: Wrong in both directions, and the second is the expensive one: can_type
+#: would unlock the keyboard on the lock screen. The thresholds had been
+#: tuned on 9 frames I picked myself, all colorful lock and bright Excel --
+#: validating on the sample I assembled myself is not validating. See
+#: docs/LEARNINGS.md item 36.
+APP_FLAT_COLOR_MIN = 0.25
 
-#: De quantos em quantos pixels amostrar para medir a cor chapada.
-#: Medido: passo 2 da a mesma separacao (folga 0.291 contra 0.275) por
-#: 7ms em vez de 27ms no frame cheio.
-COR_CHAPADA_PASSO = 2
+#: Pixel step at which to sample the flat color. Measured: step 2 gives the
+#: same separation (margin 0.291 against 0.275) for 7ms instead of 27ms on
+#: the full frame.
+FLAT_COLOR_STEP = 2
 
-#: Onde fica o bloco de login (nome do usuario + campo de senha) num
-#: alvo 1920x1080. Medido: nome em y~536, "Senha" em y~599.
+#: Where the login block (user name + password field) sits on a 1920x1080
+#: target. Measured: name at y~536, "Senha" at y~599.
 #:
-#: Buscar o marcador na TELA INTEIRA nao funciona, e isso foi medido do
-#: jeito constrangedor: "Senha" aparece em algum canto da tela do Excel,
-#: e o classificador chamou a planilha de tela de login. Marcador curto
-#: em area grande acha qualquer coisa.
+#: Searching the marker on the WHOLE SCREEN does not work, and this was
+#: measured the embarrassing way: "Senha" appears in some corner of the
+#: Excel screen, and the classifier called the spreadsheet a login screen.
+#: A short marker over a large area matches anything.
 LOGIN_REGION = [480, 420, 980, 400]
 
-#: Texto que identifica o campo de senha, procurado SO em LOGIN_REGION.
-#: Sao ASCII de proposito: o Tesseract desta maquina so tem o pacote
-#: `eng`.
-MARCADORES_SENHA = ("Senha", "Password")
+#: Text that identifies the password field, searched ONLY in LOGIN_REGION.
+#: They are ASCII on purpose: this machine's Tesseract only has the `eng`
+#: package.
+PASSWORD_MARKERS = ("Senha", "Password")
 
-#: Texto do bloqueio sem campo de senha (Spotlight).
-MARCADORES_FOTO = ("Bloqueado", "Ver previsao")
+#: Text of the lock screen without a password field (Spotlight).
+PHOTO_MARKERS = ("Bloqueado", "Ver previsao")
 
-#: O avatar do login: disco com o glifo BRANCO de usuario, logo acima do
-#: nome. Medido num alvo 1920x1080.
+#: The login avatar: a disc with the WHITE user glyph, just above the name.
+#: Measured on a 1920x1080 target.
 #:
-#: Existe porque em 2026-11-08 o rig mostrou o `marcador` de texto
-#: falhando: dois frames da MESMA tela de senha, com estatistica de
-#: pixel identica ate a quarta casa, deram "Senha" num e None no outro.
-#: A palavra e um placeholder apagado de cinco letras dentro do campo --
-#: pouco pixel e pouco contraste para o OCR depender dele sozinho.
+#: It exists because on 2026-11-08 the rig showed the text `marker` failing:
+#: two frames of the SAME password screen, with pixel statistics identical
+#: to the fourth decimal, gave "Senha" in one and None in the other. The
+#: word is a faded five-letter placeholder inside the field -- too few
+#: pixels and too little contrast for OCR to rely on it alone.
 #:
-#: O glifo e o oposto disso: mancha branca grande e saturacao ~0.
-#: Medido nos frames que restam em keep/ --
-#:   tela de senha ...... 0.3363 / 0.3363 / 0.3387  (inclusive a de
-#:                        fundo CLARO, entao nao e so contraste)
-#:   bloqueio por foto .. 0.0001
-#:   aplicativo ......... 0.0000 a 0.0141
-#: Fator de 24x entre o pior de um lado e o melhor do outro.
+#: The glyph is the opposite of that: a large white blob at saturation ~0.
+#: Measured on the frames left in keep/ --
+#:   password screen ...... 0.3363 / 0.3363 / 0.3387  (including the one on
+#:                          a BRIGHT background, so it is not just contrast)
+#:   photo lock ........... 0.0001
+#:   application .......... 0.0000 to 0.0141
+#: A factor of 24x between the worst on one side and the best on the other.
 AVATAR_REGION = [900, 345, 120, 125]
-AVATAR_BRANCO_MIN = 0.15
+AVATAR_WHITE_MIN = 0.15
 
 
-def _cor_chapada(frame, passo=COR_CHAPADA_PASSO):
-    """Fracao da tela coberta pela COR EXATA mais comum.
+def _flat_color(frame, step=FLAT_COLOR_STEP):
+    """Fraction of the screen covered by the most common EXACT COLOR.
 
-    E a prova positiva de que existe interface na tela: aplicativo tem
-    fundo de cor exata, foto nao tem. Ver APP_COR_CHAPADA_MIN.
+    It is the positive proof that an interface is on screen: an application
+    has an exact-color background, a photo does not. See APP_FLAT_COLOR_MIN.
     """
     import numpy
 
-    amostra = frame[::passo, ::passo]
-    chave = (amostra[:, :, 0].astype(numpy.int32) << 16
-             | amostra[:, :, 1].astype(numpy.int32) << 8
-             | amostra[:, :, 2].astype(numpy.int32))
-    _, contagem = numpy.unique(chave, return_counts=True)
-    return float(contagem.max()) / chave.size
+    sample = frame[::step, ::step]
+    key = (sample[:, :, 0].astype(numpy.int32) << 16
+           | sample[:, :, 1].astype(numpy.int32) << 8
+           | sample[:, :, 2].astype(numpy.int32))
+    _, counts = numpy.unique(key, return_counts=True)
+    return float(counts.max()) / key.size
 
 
-def _fracao_avatar(frame, region=None):
-    """Fracao da regiao do avatar coberta por branco quase puro.
+def _avatar_fraction(frame, region=None):
+    """Fraction of the avatar region covered by near-pure white.
 
-    Branco == claro E quase sem saturacao: o glifo do login e branco
-    chapado, enquanto uma foto clara (ceu, parede) quase sempre carrega
-    alguma cor. Ver AVATAR_REGION para os numeros medidos.
+    White == bright AND almost no saturation: the login glyph is flat white,
+    while a bright photo (sky, wall) almost always carries some color. See
+    AVATAR_REGION for the measured numbers.
 
-    Devolve 0.0 se a regiao nao couber no frame (alvo menor que
-    1920x1080): sem regiao nao ha prova, e aqui a ausencia de prova tem
-    que ser o lado que NAO libera o teclado.
+    Returns 0.0 if the region does not fit in the frame (a target smaller
+    than 1920x1080): no region means no proof, and here the absence of proof
+    must be the side that does NOT unlock the keyboard.
     """
     import cv2
     import numpy
 
-    recorte = _recorta(frame, region or AVATAR_REGION)
-    if recorte is None:
+    crop = _crop(frame, region or AVATAR_REGION)
+    if crop is None:
         return 0.0
-    x, y, w, h = recorte
+    x, y, w, h = crop
     r = frame[y:y + h, x:x + w]
-    cinza = cv2.cvtColor(r, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(r, cv2.COLOR_BGR2GRAY)
     hsv = cv2.cvtColor(r, cv2.COLOR_BGR2HSV)
-    branco = numpy.logical_and(cinza > 225, hsv[:, :, 1] < 40)
-    return float(branco.sum()) / cinza.size
+    white = numpy.logical_and(gray > 225, hsv[:, :, 1] < 40)
+    return float(white.sum()) / gray.size
 
 
-def _estatisticas(frame):
+def _statistics(frame):
     import cv2
     import numpy
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # desvio vertical medio: numa barra de cor ele e ~0
-    desvio_vertical = float(numpy.mean(gray.std(axis=0)))
-    # quantas faixas de matiz distintas ao longo de x
-    matizes = hsv[:, :, 0].mean(axis=0)
-    faixas = 1
-    for i in range(1, len(matizes)):
-        if abs(float(matizes[i]) - float(matizes[i - 1])) > 8:
-            faixas += 1
+    # mean vertical std: on a color bar it is ~0
+    vertical_std = float(numpy.mean(gray.std(axis=0)))
+    # how many distinct hue bands along x
+    hues = hsv[:, :, 0].mean(axis=0)
+    bands = 1
+    for i in range(1, len(hues)):
+        if abs(float(hues[i]) - float(hues[i - 1])) > 8:
+            bands += 1
     return {
-        "media": float(gray.mean()),
-        "desvio": float(gray.std()),
-        "saturacao": float(hsv[:, :, 1].mean()),
-        "desvio_vertical": desvio_vertical,
-        "faixas": faixas,
-        "cor_chapada": _cor_chapada(frame),
-        "avatar": _fracao_avatar(frame),
+        "mean": float(gray.mean()),
+        "std": float(gray.std()),
+        "saturation": float(hsv[:, :, 1].mean()),
+        "vertical_std": vertical_std,
+        "bands": bands,
+        "flat_color": _flat_color(frame),
+        "avatar": _avatar_fraction(frame),
     }
 
 
-def _tem_texto(frame, marcadores, region=None, lang="eng"):
-    """Qual marcador aparece na regiao, tentando varias escalas (ou None)."""
+def _has_text(frame, markers, region=None, lang="eng"):
+    """Which marker appears in the region, trying several scales (or None)."""
     import screen_utils
 
-    for alvo in marcadores:
-        achado = screen_utils.find_text_in_frame(
-            frame, alvo, region=region, lang=lang)
-        if achado.get("found"):
-            return alvo
+    for target in markers:
+        found = screen_utils.find_text_in_frame(
+            frame, target, region=region, lang=lang)
+        if found.get("found"):
+            return target
     return None
 
 
-def _recorta(frame, region):
-    """A regiao, ou o frame inteiro se ela nao couber (alvo menor)."""
+def _crop(frame, region):
+    """The region, or None if it does not fit (a smaller target)."""
     x, y, w, h = region
     if frame.shape[0] < y + h or frame.shape[1] < x + w:
         return None
@@ -222,122 +222,123 @@ def _recorta(frame, region):
 
 
 def classify_frame(frame, lang="eng"):
-    """Classifica UM frame. Devolve (estado, detalhe).
+    """Classify ONE frame. Returns (state, detail).
 
-    Nao use direto para decidir: um frame pode ser o do buffer antigo.
-    Use classify().
+    Do not use it directly to decide: a frame may be the old one from the
+    buffer. Use classify().
     """
-    st = _estatisticas(frame)
+    st = _statistics(frame)
 
-    if st["media"] <= PRETO_MEDIA_MAX and st["desvio"] <= PRETO_DESVIO_MAX:
-        return PRETO, st
+    if st["mean"] <= BLACK_MEAN_MAX and st["std"] <= BLACK_STD_MAX:
+        return BLACK, st
 
-    if (st["saturacao"] >= BARRAS_SATURACAO_MIN
-            and st["desvio_vertical"] <= BARRAS_DESVIO_VERTICAL_MAX
-            and st["faixas"] >= BARRAS_FAIXAS_MIN):
-        return SEM_SINAL, st
+    if (st["saturation"] >= BARS_SATURATION_MIN
+            and st["vertical_std"] <= BARS_VERTICAL_STD_MAX
+            and st["bands"] >= BARS_BANDS_MIN):
+        return NO_SIGNAL, st
 
-    # O OCR so entra DEPOIS do portao de pixel. Ele e caro, e -- mais
-    # importante -- um marcador curto procurado na tela toda acha
-    # qualquer coisa: "Senha" aparece num canto da tela do Excel.
+    # OCR only runs AFTER the pixel gate. It is expensive and -- more
+    # importantly -- a short marker searched over the whole screen matches
+    # anything: "Senha" shows up in a corner of the Excel screen.
     #
-    # A pergunta do portao e "ha PROVA de interface?", e nao "parece
-    # foto?". A diferenca importa porque o ramo sem prova e o que decide
-    # o estado quando nao se sabe, e ele precisa ser o ramo que RECUSA o
-    # teclado. Na versao anterior a pergunta era a outra, e o que faltava
-    # de prova virava APP -- ou seja, virava permissao.
-    parece_app = st["cor_chapada"] >= APP_COR_CHAPADA_MIN
-    st["parece_app"] = parece_app
-    if parece_app:
+    # The gate's question is "is there PROOF of an interface?", not "does it
+    # look like a photo?". The difference matters because the no-proof
+    # branch is the one that decides the state when it is unknown, and it
+    # must be the branch that REFUSES the keyboard. In the previous version
+    # the question was the other one, and whatever proof was missing became
+    # APP -- that is, became permission.
+    looks_like_app = st["flat_color"] >= APP_FLAT_COLOR_MIN
+    st["looks_like_app"] = looks_like_app
+    if looks_like_app:
         return APP, st
 
-    # Ordem importa: o campo de senha e o estado mais especifico, e a
-    # tela de bloqueio com foto tambem mostra clima e relogio.
-    achado = _tem_texto(frame, MARCADORES_SENHA,
-                        region=_recorta(frame, LOGIN_REGION), lang=lang)
-    if achado:
-        st["marcador"] = achado
-        return BLOQUEIO_SENHA, st
+    # Order matters: the password field is the most specific state, and the
+    # photo lock screen also shows weather and a clock.
+    found = _has_text(frame, PASSWORD_MARKERS,
+                      region=_crop(frame, LOGIN_REGION), lang=lang)
+    if found:
+        st["marker"] = found
+        return LOCK_PASSWORD, st
 
-    # O avatar do login, quando o OCR nao leu o placeholder "Senha".
-    # E sinal ADICIONAL, nunca substituto: so pode ampliar o que ja era
-    # reconhecido, nunca tirar.
+    # The login avatar, when OCR did not read the "Senha" placeholder. It is
+    # an ADDITIONAL signal, never a substitute: it can only widen what was
+    # already recognized, never remove.
     #
-    # Ampliar BLOQUEIO_SENHA nao e de graca -- e o estado em que
-    # pode_digitar() libera a SENHA. O que segura o risco e o lugar
-    # desta checagem: ela so roda depois do portao de pixel ter dito que
-    # NAO ha interface na tela, entao uma janela de aplicativo nunca
-    # chega aqui. Medido: aplicativo vai no maximo a 0.0141, contra
-    # 0.3363 das telas de senha.
-    if st["avatar"] >= AVATAR_BRANCO_MIN:
-        st["marcador"] = "avatar"
-        return BLOQUEIO_SENHA, st
+    # Widening LOCK_PASSWORD is not free -- it is the state in which
+    # can_type() unlocks the PASSWORD. What contains the risk is the place
+    # of this check: it only runs after the pixel gate has said there is NO
+    # interface on screen, so an application window never reaches here.
+    # Measured: an application goes at most to 0.0141, against 0.3363 on
+    # password screens.
+    if st["avatar"] >= AVATAR_WHITE_MIN:
+        st["marker"] = "avatar"
+        return LOCK_PASSWORD, st
 
-    achado = _tem_texto(frame, MARCADORES_FOTO, lang=lang)
-    st["marcador"] = achado
-    # Sem prova de interface e sem marcador. Fica em BLOQUEIO_FOTO de
-    # proposito, porque pode_digitar() recusa esse estado -- na duvida
-    # entre "area de trabalho com papel de parede" e "tela bloqueada",
-    # errar para o lado que NAO digita e o lado barato: perde-se um
-    # lote, contra digitar a esmo numa tela de senha.
+    found = _has_text(frame, PHOTO_MARKERS, lang=lang)
+    st["marker"] = found
+    # No proof of an interface and no marker. It stays in LOCK_PHOTO on
+    # purpose, because can_type() refuses that state -- when in doubt
+    # between "desktop with wallpaper" and "locked screen", erring toward
+    # the side that does NOT type is the cheap side: you lose a batch,
+    # versus typing blindly into a password screen.
     #
-    # Medido no rig em 2026-11-07: a tela de bloqueio ficou um bom tempo
-    # mostrando SO a foto, sem relogio e sem data, e so depois de uma
-    # tecla apareceu o relogio. Quer dizer que o caminho "cara de foto,
-    # nenhum marcador" nao e exotico -- e o estado normal da tela de
-    # bloqueio ociosa.
-    return BLOQUEIO_FOTO, st
+    # Measured on the rig on 2026-11-07: the lock screen spent a good while
+    # showing ONLY the photo, with no clock and no date, and only after a
+    # key did the clock appear. That means the "looks like a photo, no
+    # marker" path is not exotic -- it is the normal state of the idle lock
+    # screen.
+    return LOCK_PHOTO, st
 
 
 def classify(frames, lang="eng"):
-    """Classifica a partir de DUAS OU MAIS amostras.
+    """Classify from TWO OR MORE samples.
 
-    Devolve {"estado", "concorda", "por_frame", "detalhe"}.
+    Returns {"state", "agree", "per_frame", "detail"}.
 
-    Levanta ValueError com uma amostra so. Isso e de proposito e e o
-    ponto deste modulo: o buffer da capturadora serve frame velho, e
-    uma leitura unica ja me fez afirmar duas vezes que a tela estava
-    bloqueada quando nao estava.
+    Raises ValueError with a single sample. This is on purpose and is the
+    point of this module: the capture device's buffer serves an old frame,
+    and a single read already made me assert twice that the screen was
+    locked when it was not.
     """
     frames = list(frames)
     if len(frames) < 2:
         raise ValueError(
-            "classify() exige 2+ amostras: uma leitura so nao distingue o "
-            "estado atual de um frame velho servido pelo buffer da "
-            "capturadora (ver docs/CAPTURA_VIDEO_BUFFER.md). Capture de "
-            "novo com um intervalo entre as capturas.")
+            "classify() requires 2+ samples: a single read cannot tell the "
+            "current state from an old frame served by the capture device's "
+            "buffer (see docs/CAPTURE_VIDEO_BUFFER.md). Capture again with a "
+            "gap between captures.")
 
-    vereditos = [classify_frame(f, lang=lang) for f in frames]
-    estados = [e for e, _ in vereditos]
-    concorda = len(set(estados)) == 1
+    verdicts = [classify_frame(f, lang=lang) for f in frames]
+    states = [s for s, _ in verdicts]
+    agree = len(set(states)) == 1
     return {
-        "estado": estados[0] if concorda else INDETERMINADO,
-        "concorda": concorda,
-        "por_frame": estados,
-        "detalhe": vereditos[-1][1],
+        "state": states[0] if agree else UNDETERMINED,
+        "agree": agree,
+        "per_frame": states,
+        "detail": verdicts[-1][1],
     }
 
 
-def pode_digitar(resultado):
-    """So dois estados aceitam teclado, e por motivos diferentes.
+def can_type(result):
+    """Only two states accept the keyboard, and for different reasons.
 
-    APP para trabalhar, BLOQUEIO_SENHA para digitar a senha. Nos outros
-    o teclado vai para o nada (ou pior, para a janela errada quando o
-    sinal voltar no meio do lote).
+    APP to work, LOCK_PASSWORD to type the password. In the others the
+    keyboard goes nowhere (or worse, to the wrong window when the signal
+    comes back mid-batch).
     """
-    return resultado.get("concorda") and resultado["estado"] in (APP, BLOQUEIO_SENHA)
+    return result.get("agree") and result["state"] in (APP, LOCK_PASSWORD)
 
 
-def amostrar(capture_fn, amostras=2, intervalo=1.5, lang="eng"):
-    """Captura `amostras` frames espacados e classifica.
+def sample(capture_fn, samples=2, interval=1.5, lang="eng"):
+    """Capture `samples` spaced frames and classify.
 
-    `capture_fn` devolve um frame (ex.: ctx.capture_array).
+    `capture_fn` returns a frame (e.g. ctx.capture_array).
     """
     import time
 
     frames = []
-    for i in range(max(2, int(amostras))):
+    for i in range(max(2, int(samples))):
         if i:
-            time.sleep(intervalo)
+            time.sleep(interval)
         frames.append(capture_fn())
     return classify(frames, lang=lang)

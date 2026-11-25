@@ -31,8 +31,8 @@ def test_env_file_used_when_environment_is_empty(tmp_path):
     env = tmp_path / ".env"
     env.write_text(
         "# a comment\n"
-        'VERIKVM_USERNAME="bob"\n'
-        "VERIKVM_PASSWORD = 'p@ss word'\n", encoding="utf-8")
+        'GHOSTCONTROL_USERNAME="bob"\n'
+        "GHOSTCONTROL_PASSWORD = 'p@ss word'\n", encoding="utf-8")
     c = cr.load_credentials(env_file=str(env), allow_keyring=False)
     assert c.username == "bob"
     assert c.password == "p@ss word"   # quotes stripped, spaces kept
@@ -41,7 +41,7 @@ def test_env_file_used_when_environment_is_empty(tmp_path):
 
 def test_environment_overrides_env_file(tmp_path, monkeypatch):
     env = tmp_path / ".env"
-    env.write_text("VERIKVM_PASSWORD=from-file\n", encoding="utf-8")
+    env.write_text("GHOSTCONTROL_PASSWORD=from-file\n", encoding="utf-8")
     monkeypatch.setenv(cr.ENV_PASSWORD, "from-env")
     c = cr.load_credentials(env_file=str(env), allow_keyring=False)
     assert c.password == "from-env"
@@ -71,7 +71,7 @@ def test_nothing_set_leaves_password_none(tmp_path):
 
 def test_blank_password_in_env_file_means_prompt(tmp_path):
     env = tmp_path / ".env"
-    env.write_text("VERIKVM_USERNAME=dave\nVERIKVM_PASSWORD=\n", encoding="utf-8")
+    env.write_text("GHOSTCONTROL_USERNAME=dave\nGHOSTCONTROL_PASSWORD=\n", encoding="utf-8")
     c = cr.load_credentials(env_file=str(env), allow_keyring=False)
     assert c.username == "dave"
     assert c.password is None          # blank is not a password
