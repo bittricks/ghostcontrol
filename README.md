@@ -16,8 +16,9 @@ the lock screen or the wrong app.
 > **For your own machines.** Two machines of yours, two cables, and you.
 > See [SECURITY.md](SECURITY.md) for the scope and threat model.
 
-[English] · [Português](README.pt-BR.md) · MIT · built on a CH9329 USB-HID
-bridge + an HDMI capture card
+🌐 **English** · [Português](README.pt-BR.md) · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+
+MIT · built on a CH9329 USB-HID bridge + an HDMI capture card
 
 ---
 

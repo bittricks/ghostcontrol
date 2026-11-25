@@ -15,8 +15,9 @@ cai na tela de bloqueio nem no app errado.
 > **Para as suas próprias máquinas.** Duas máquinas suas, dois cabos, e você.
 > Veja [SECURITY.md](SECURITY.md) para o escopo e o modelo de ameaça.
 
-[Português] · [English](README.md) · MIT · sobre uma ponte USB-HID CH9329 +
-uma placa de captura HDMI
+🌐 [English](README.md) · **Português** · [Español](README.es.md) · [中文](README.zh.md) · [Français](README.fr.md) · [Русский](README.ru.md)
+
+MIT · sobre uma ponte USB-HID CH9329 + uma placa de captura HDMI
 
 ---
 
