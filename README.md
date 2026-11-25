@@ -21,6 +21,33 @@ bridge + an HDMI capture card
 
 ---
 
+## What you can automate
+
+VeriKVM saves you the hours you'd spend babysitting a second computer. You
+write small JSON tasks (or reuse the examples), and it carries out the
+everyday and at-work desktop work people automate most — always acting only
+when the screen is the one the task expects:
+
+- **Reply to chats and messages** — WhatsApp Web, Telegram, Slack, Teams:
+  spot a new message, type the answer, hit send.
+- **Keep a machine awake and active** — stop it sleeping, locking or going
+  idle during long jobs, without changing power settings.
+- **Answer and triage email** — open the client, read what's on screen, type
+  the reply, file the message.
+- **Edit spreadsheets** — open Excel or Google Sheets, enter rows, trigger a
+  recalculation, save.
+- **Fill forms and do data entry** — repetitive typing into web or desktop
+  apps that have no API.
+- **Drive apps that reject bots and macros** — because the input is real
+  USB-HID, software that blocks scripts still accepts it.
+- **Run unattended batches overnight** — queue a list of tasks; it verifies
+  every screen first, so nothing fires in the wrong window.
+- **Operate a second or headless PC remotely** — no agent, driver or
+  remote-desktop software installed on that machine.
+
+In short: **agentless desktop automation (RPA) for a second computer**, with
+screen verification so a task never types into the wrong place.
+
 ## Why this one
 
 Every other software KVM forwards your keystrokes blindly — it has no idea

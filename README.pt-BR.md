@@ -20,6 +20,34 @@ uma placa de captura HDMI
 
 ---
 
+## O que dá para automatizar
+
+O VeriKVM poupa as horas que você gastaria vigiando uma segunda máquina.
+Você descreve tarefas pequenas em JSON (ou reaproveita os exemplos), e ele
+executa o trabalho de desktop do dia a dia e do trabalho que as pessoas mais
+automatizam — sempre agindo só quando a tela é a que a tarefa espera:
+
+- **Responder chats e mensagens** — WhatsApp Web, Telegram, Slack, Teams:
+  detecta a mensagem nova, digita a resposta e envia.
+- **Manter a máquina ativa, sem desligar** — impede dormir, bloquear ou ficar
+  ociosa durante tarefas longas, sem mexer nas opções de energia.
+- **Responder e triar e-mails** — abre o cliente, lê o que está na tela,
+  digita a resposta e arquiva.
+- **Editar planilhas** — abre o Excel ou o Google Sheets, insere linhas,
+  dispara um recálculo e salva.
+- **Preencher formulários e fazer entrada de dados** — digitação repetitiva
+  em apps web ou desktop que não têm API.
+- **Operar apps que barram bots e macros** — como a entrada é USB-HID real,
+  softwares que bloqueiam scripts mesmo assim aceitam.
+- **Rodar lotes sem supervisão de madrugada** — enfileira uma lista; ele
+  confere cada tela antes, então nada dispara na janela errada.
+- **Controlar um segundo PC (ou sem monitor) remotamente** — sem agente,
+  driver ou software de acesso remoto instalado naquela máquina.
+
+Em resumo: **automação de desktop sem agente (RPA) para um segundo
+computador**, com verificação de tela para que uma tarefa nunca digite no
+lugar errado.
+
 ## Por que este
 
 Todo outro KVM por software encaminha a tecla às cegas — não sabe qual janela
