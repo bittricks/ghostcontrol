@@ -1,11 +1,11 @@
-# GhostControl takes donations in crypto — see the README's Support section for
-# the addresses (Bitcoin, Ethereum/EVM, Solana, Tron, Monero). Monero keeps
-# both the maintainer and the donor anonymous; the others are pseudonymous
-# on-chain and not tied to any public identity.
+# GhostControl takes donations two ways.
 #
-# GitHub Sponsors is pending approval. Once the listing is live, add
-#   github: [bittricks]
-# below to light up the native Sponsor button.
+# GitHub Sponsors (native button below) — supports the maintainer directly
+# through GitHub.
 #
-# The Sponsor button links to the README's Support section.
+# Crypto — see the README's Support section for the addresses (Bitcoin,
+# Ethereum/EVM, Solana, Tron, Monero). Monero keeps both the maintainer and
+# the donor anonymous; the others are pseudonymous on-chain and not tied to
+# any public identity.
+github: [bittricks]
 custom: ["https://github.com/bittricks/ghostcontrol#support"]
